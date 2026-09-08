@@ -1,6 +1,6 @@
 {
   "name": "WHAT IF?",
-  "description": "Deterministic life decision & financial future simulator with multi-scenario projections.",
+  "description": "Copilote de décision & faisabilité de projet : analyse de faisabilité, budgets, risques et plans d'action.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
