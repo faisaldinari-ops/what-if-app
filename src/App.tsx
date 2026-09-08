@@ -2,6 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import { SupportedLang, SupportedCurrency } from './i18n';
 import { UserExtractedData, MissingQuestion, DecisionAnalysis } from './types/decision';
+import { CoPilotResponse, SmartCTAAction } from './types/planning';
 import { analyzeProjectInput } from './services/ai/projectAnalyzer';
 import { calculateFeasibility } from './logic/feasibilityEngine';
 
@@ -11,14 +12,18 @@ import { SmartQuestionnaire } from './features/project-input/SmartQuestionnaire'
 import { FeasibilityHero } from './features/results/FeasibilityHero';
 import { KeyMetricsGrid } from './features/results/KeyMetricsGrid';
 import { MainProblemCard } from './features/results/MainProblemCard';
+import { RecommendationCard } from './features/results/RecommendationCard';
+import { DomainSpecificCard } from './features/results/DomainSpecificCard';
+import { SmartCTASection } from './features/results/SmartCTASection';
 import { ActionPlanSection } from './features/results/ActionPlanSection';
 import { SolutionVariantsSection } from './features/results/SolutionVariantsSection';
+import { MilestonesPathSection } from './features/results/MilestonesPathSection';
 import { ScenariosSection } from './features/scenarios/ScenariosSection';
 import { DetailedAnalysisDrawer } from './features/results/DetailedAnalysisDrawer';
 import { ShareReportModal } from './features/results/ShareReportModal';
 import { SavedProjectsDrawer } from './features/projects/SavedProjectsDrawer';
 
-import { Share2, PlusCircle, ArrowLeft, AlertTriangle } from 'lucide-react';
+import { Share2, ArrowLeft, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 
 const STORAGE_SAVED_PROJECTS = 'whatif_saved_decisions_v3';
 const STORAGE_LANG = 'whatif_lang_v3';
@@ -51,10 +56,12 @@ export const App: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
-  // Active analysis state
+  // Active analysis & co-pilot state
   const [activeData, setActiveData] = useState<UserExtractedData | null>(null);
   const [missingQuestions, setMissingQuestions] = useState<MissingQuestion[]>([]);
   const [activeAnalysis, setActiveAnalysis] = useState<DecisionAnalysis | null>(null);
+  const [activeCoPilot, setActiveCoPilot] = useState<CoPilotResponse | null>(null);
+  const [showFullFinancials, setShowFullFinancials] = useState(false);
 
   // Modals & Drawers
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
@@ -98,6 +105,9 @@ export const App: React.FC = () => {
     try {
       const res = await analyzeProjectInput(prompt, undefined, lang, currency);
       setActiveData(res.data);
+      if (res.coPilot) {
+        setActiveCoPilot(res.coPilot);
+      }
 
       if (res.isReadyForAnalysis && res.analysis) {
         setActiveAnalysis(res.analysis);
@@ -128,15 +138,24 @@ export const App: React.FC = () => {
   };
 
   // 5. Questionnaire Submission
-  const handleQuestionnaireSubmit = (updatedData: UserExtractedData) => {
+  const handleQuestionnaireSubmit = async (updatedData: UserExtractedData) => {
     setIsLoading(true);
     setErrorMessage(null);
 
     try {
-      const calculated = calculateFeasibility(updatedData, lang, currency);
+      const res = await analyzeProjectInput(updatedData.prompt, updatedData, lang, currency);
       setActiveData(updatedData);
-      setActiveAnalysis(calculated);
-      saveCurrentAnalysis(calculated);
+      if (res.coPilot) {
+        setActiveCoPilot(res.coPilot);
+      }
+      if (res.analysis) {
+        setActiveAnalysis(res.analysis);
+        saveCurrentAnalysis(res.analysis);
+      } else {
+        const calculated = calculateFeasibility(updatedData, lang, currency);
+        setActiveAnalysis(calculated);
+        saveCurrentAnalysis(calculated);
+      }
       setViewState('results');
     } catch (err) {
       console.error('Questionnaire error:', err);
@@ -151,11 +170,13 @@ export const App: React.FC = () => {
   };
 
   // Fallback if user chooses "Utiliser les estimations du secteur"
-  const handleUseMarketDefaults = () => {
+  const handleUseMarketDefaults = async () => {
     if (!activeData) return;
     setIsLoading(true);
     try {
-      const calculated = calculateFeasibility(activeData, lang, currency);
+      const res = await analyzeProjectInput(activeData.prompt, activeData, lang, currency);
+      if (res.coPilot) setActiveCoPilot(res.coPilot);
+      const calculated = res.analysis || calculateFeasibility(activeData, lang, currency);
       setActiveAnalysis(calculated);
       saveCurrentAnalysis(calculated);
       setViewState('results');
@@ -164,12 +185,43 @@ export const App: React.FC = () => {
     }
   };
 
+  // 6. Smart CTA Execution
+  const handleExecuteCTA = (cta: SmartCTAAction) => {
+    if (!activeData) return;
+
+    if (cta.actionType === 'WAIT_MONTHS' && cta.payload?.months && cta.payload?.monthlyRate) {
+      const extra = cta.payload.months * cta.payload.monthlyRate;
+      const newBudget = (activeData.budget || 0) + extra;
+      const newPrompt = `${activeData.prompt} (Avec ${newBudget.toLocaleString()} € de budget après ${cta.payload.months} mois d'épargne)`;
+      handleInitialSubmit(newPrompt);
+    } else if (cta.actionType === 'FIND_CHEAPER') {
+      const newPrompt = `Trouve-moi une version optimisée ou moins chère pour : ${activeData.prompt}`;
+      handleInitialSubmit(newPrompt);
+    } else if (cta.actionType === 'BUILD_PATH') {
+      const el = document.getElementById('milestones-path-section');
+      if (el) {
+        el.scrollIntoView({ behavior: 'smooth' });
+      }
+    } else if (cta.actionType === 'START_THIS_WEEK') {
+      const minimal = activeAnalysis?.variants.minimal;
+      const targetName = minimal?.name || 'Version minimale';
+      const cost = minimal?.estimatedCost || 500;
+      const newPrompt = `Comment lancer cette semaine avec mes moyens la version lean : ${targetName} (${cost} €) ?`;
+      handleInitialSubmit(newPrompt);
+    } else if (cta.actionType === 'CHANGE_COUNTRY') {
+      const newPrompt = `Quelles sont les meilleures destinations alternatives pour : ${activeData.prompt} ?`;
+      handleInitialSubmit(newPrompt);
+    }
+  };
+
   // Start a fresh project
   const handleNewProject = () => {
     setActiveData(null);
     setActiveAnalysis(null);
+    setActiveCoPilot(null);
     setMissingQuestions([]);
     setErrorMessage(null);
+    setShowFullFinancials(false);
     setViewState('input');
   };
 
@@ -240,7 +292,7 @@ export const App: React.FC = () => {
         {/* VIEW 3: RESULTS (Crystal-clear decision analysis & action plan) */}
         {viewState === 'results' && activeAnalysis && (
           <div className="w-full max-w-4xl mx-auto px-4 py-8 sm:py-12 space-y-8 pb-28">
-            {/* Top Navigation Back */}
+            {/* Top Navigation Back & Share */}
             <div className="flex items-center justify-between">
               <button
                 onClick={() => setViewState('input')}
@@ -267,17 +319,17 @@ export const App: React.FC = () => {
               </button>
             </div>
 
-            {/* 1. Verdict & Score (Feasibility Hero) */}
+            {/* 1. Verdict & Score (Feasibility Hero - Section 17 & 18) */}
             <FeasibilityHero
               verdict={activeAnalysis.verdict}
-              verdictTitle={activeAnalysis.verdictTitle}
-              verdictSummary={activeAnalysis.verdictSummary}
+              verdictTitle={activeCoPilot?.headlineVerdict || activeAnalysis.verdictTitle}
+              verdictSummary={activeCoPilot?.whySummary || activeAnalysis.verdictSummary}
               score={activeAnalysis.score}
               projectTitle={activeAnalysis.userInput.projectTitle}
               lang={lang}
             />
 
-            {/* 2. Key Metrics Grid (4 to 6 numbers maximum) */}
+            {/* 2. Key Metrics Grid (Max 6 figures - Section 17) */}
             <KeyMetricsGrid
               budgetAvailable={activeAnalysis.metrics.budgetAvailable}
               budgetNeeded={activeAnalysis.metrics.budgetNeeded}
@@ -288,37 +340,92 @@ export const App: React.FC = () => {
               currency={currency}
             />
 
-            {/* 3. Main Problem (Single priority) */}
+            {/* 3. Main Problem (Single priority - Section 17) */}
             <MainProblemCard
-              title={activeAnalysis.mainProblem.title}
-              description={activeAnalysis.mainProblem.description}
+              title={activeCoPilot?.mainObstacle.title || activeAnalysis.mainProblem.title}
+              description={activeCoPilot?.mainObstacle.description || activeAnalysis.mainProblem.description}
               priorityLevel={activeAnalysis.mainProblem.priorityLevel}
               lang={lang}
             />
 
-            {/* 4. Action Plan: "Comment je le fais ?" (Central feature!) */}
-            <ActionPlanSection steps={activeAnalysis.actionPlan} lang={lang} />
+            {/* 4. Ce que je te recommande (Short plan - Section 17) */}
+            <RecommendationCard
+              recommendationText={
+                activeCoPilot?.recommendationShortPlan ||
+                (lang === 'fr'
+                  ? '1. Conserve un matelas de sécurité d’au moins 3 mois. 2. Démarre par la version optimisée ou lean. 3. Automatise ton épargne mensuelle.'
+                  : '1. Preserve a 3-month safety cushion. 2. Start with the leanest viable version. 3. Automate monthly savings.')
+              }
+              lang={lang}
+            />
 
-            {/* 5. Mode "Trouve-moi une solution" (3 Variants: Original, Reduced, Minimal) */}
+            {/* 5. Domain-Specific Intelligence (Travel / Relocation / Business / Career - Section 10-14) */}
+            <DomainSpecificCard
+              coPilotData={activeCoPilot || undefined}
+              lang={lang}
+              currency={currency}
+            />
+
+            {/* 6. Smart CTAs (Section 28) */}
+            {activeCoPilot?.smartCTAs && activeCoPilot.smartCTAs.length > 0 && (
+              <SmartCTASection
+                ctas={activeCoPilot.smartCTAs}
+                lang={lang}
+                onExecuteCTA={handleExecuteCTA}
+              />
+            )}
+
+            {/* 7. Mode "Trouve-moi une solution" (3 Variants: Original, Reduced, Minimal - Section 15 & 17) */}
             <SolutionVariantsSection
               variants={activeAnalysis.variants}
               lang={lang}
               currency={currency}
             />
 
-            {/* 6. 3 Scenarios: Prudent, Réaliste, Favorable */}
-            <ScenariosSection
-              scenarios={activeAnalysis.scenarios}
-              lang={lang}
-              currency={currency}
-            />
+            {/* 8. "Construis-moi le chemin" : Milestones Roadmap (Section 16) */}
+            <div id="milestones-path-section">
+              <MilestonesPathSection
+                milestones={activeCoPilot?.constructedPath}
+                lang={lang}
+                currency={currency}
+              />
+            </div>
 
-            {/* 7. Detailed Analysis Drawer (Stress tests, Breaking point, Hypotheses) */}
-            <DetailedAnalysisDrawer
-              analysis={activeAnalysis}
-              lang={lang}
-              currency={currency}
-            />
+            {/* 9. Action Plan : "Comment y arriver" (Section 17) */}
+            <ActionPlanSection steps={activeAnalysis.actionPlan} lang={lang} />
+
+            {/* 10. "Voir l'analyse complète" Toggle (Section 17) */}
+            <div className="pt-4 border-t border-slate-800/80">
+              <button
+                onClick={() => setShowFullFinancials(prev => !prev)}
+                className="w-full py-3.5 px-6 rounded-2xl bg-slate-900/80 hover:bg-slate-800 border border-slate-800 flex items-center justify-between text-xs sm:text-sm font-bold text-slate-200 transition-all cursor-pointer"
+              >
+                <span>
+                  {showFullFinancials
+                    ? (lang === 'fr' ? 'Masquer l’analyse financière détaillée' : 'Hide detailed financial analysis')
+                    : (lang === 'fr' ? 'Voir l’analyse financière complète (Scénarios & Crash-tests)' : 'View full financial analysis (Scenarios & Stress-tests)')}
+                </span>
+                {showFullFinancials ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+              </button>
+
+              {showFullFinancials && (
+                <div className="space-y-8 pt-6">
+                  {/* Scenarios: Prudent, Réaliste, Favorable */}
+                  <ScenariosSection
+                    scenarios={activeAnalysis.scenarios}
+                    lang={lang}
+                    currency={currency}
+                  />
+
+                  {/* Detailed Analysis Drawer (Stress tests, Breaking point, Data Provenance) */}
+                  <DetailedAnalysisDrawer
+                    analysis={activeAnalysis}
+                    lang={lang}
+                    currency={currency}
+                  />
+                </div>
+              )}
+            </div>
           </div>
         )}
       </main>
@@ -346,4 +453,5 @@ export const App: React.FC = () => {
     </div>
   );
 };
+
 export default App;

@@ -12,41 +12,65 @@ interface HeroInputProps {
 export const HeroInput: React.FC<HeroInputProps> = ({ lang, onSubmit, isLoading = false }) => {
   const [prompt, setPrompt] = useState('');
 
+  const projectCategories =
+    lang === 'fr'
+      ? [
+          { label: 'Créer mon entreprise', template: 'J’ai 5 000 € et je veux ouvrir un commerce / food truck.' },
+          { label: 'Partir vivre ailleurs', template: 'Je veux quitter la France pour aller vivre et travailler en Espagne.' },
+          { label: 'Voyager', template: 'Je veux partir voyager 10 jours au Japon avec un budget de 1 200 €.' },
+          { label: 'Changer de métier', template: 'Je gagne 2 200 €/mois et je veux changer de métier pour devenir développeur ou artisan.' },
+          { label: 'Acheter quelque chose', template: 'Je gagne 2 400 €/mois et je veux acheter un appartement à 180 000 €.' },
+          { label: 'Lancer un projet', template: 'Je veux créer un site web / une application mobile mais j’ai 0 €.' },
+          { label: 'Je ne sais pas encore', template: 'J’ai 10 000 € d’économies de côté et je cherche le meilleur projet réaliste.' }
+        ]
+      : lang === 'es'
+      ? [
+          { label: 'Crear mi empresa', template: 'Tengo 5 000 € y quiero abrir un food truck.' },
+          { label: 'Irme a vivir fuera', template: 'Quiero mudarme a España o Portugal.' },
+          { label: 'Viajar', template: 'Quiero viajar a Japón 10 días.' },
+          { label: 'Cambiar de trabajo', template: 'Quiero cambiar de profesión.' },
+          { label: 'Comprar algo', template: 'Quiero comprar una casa.' },
+          { label: 'Lanzar un proyecto', template: 'Quiero crear una web con 0 €.' },
+          { label: 'Aún no lo sé', template: 'Tengo ahorros y busco un proyecto realista.' }
+        ]
+      : [
+          { label: 'Start a business', template: 'I have $5,000 and want to launch a food truck.' },
+          { label: 'Move abroad', template: 'I want to relocate to Spain.' },
+          { label: 'Travel', template: 'I want to travel to Japan for 10 days.' },
+          { label: 'Career change', template: 'I want to switch careers.' },
+          { label: 'Buy something', template: 'I want to buy an apartment.' },
+          { label: 'Launch a project', template: 'I want to build a web app with $0.' },
+          { label: 'Not sure yet', template: 'I have savings and look for a realistic project.' }
+        ];
+
   const quickPrompts =
     lang === 'fr'
       ? [
           'J’ai 5 000 € et je veux ouvrir un food truck.',
           'J’ai 20 000 €, je gagne 2 800 €/mois, je dépense 1 600 € et je veux ouvrir un barber shop.',
           'Je gagne 2 400 €/mois et je veux acheter un appartement.',
+          'Je veux partir au Japon 10 jours avec 800 €.',
+          'Je veux créer un site web mais j’ai 0 €.',
           'Je veux quitter mon travail pour devenir indépendant.',
-          'J’ai 3 000 € et je veux créer une marque de vêtements.',
           'Je veux déménager en Espagne.',
-          'Je veux ouvrir un restaurant mais je ne sais pas combien il me faut.',
-          'Je veux lancer une application avec 1 500 €.',
-          'Je veux acheter une voiture à 30 000 €.'
+          'Je veux vivre à Miami, j’ai 300 € et pas de diplôme.'
         ]
       : lang === 'es'
       ? [
           'Tengo 5 000 € y quiero abrir un food truck.',
           'Tengo 20 000 €, gano 2 800 €/mes, gasto 1 600 € y quiero abrir una peluquería.',
           'Gano 2 400 €/mes y quiero comprar un piso.',
-          'Quiero dejar mi trabajo para ser autónomo.',
-          'Tengo 3 000 € y quiero crear una marca de ropa.',
-          'Quiero mudarme a España.',
-          'Quiero abrir un restaurante pero no sé cuánto dinero necesito.',
-          'Quiero lanzar una aplicación con 1 500 €.',
-          'Quiero comprar un coche de 30 000 €.'
+          'Quiero viajar a Japón 10 días con 800 €.',
+          'Quiero crear una web pero tengo 0 €.',
+          'Quiero mudarme a España.'
         ]
       : [
           'I have $5,000 and I want to launch a food truck.',
           'I have $20,000, earn $2,800/mo, spend $1,600 and want to open a barber shop.',
           'I earn $2,400/month and want to buy an apartment.',
-          'I want to leave my job to become a freelancer.',
-          'I have $3,000 and want to create a clothing brand.',
-          'I want to relocate to Spain.',
-          'I want to open a restaurant but do not know how much I need.',
-          'I want to launch a mobile app with $1,500.',
-          'I want to buy a $30,000 car.'
+          'I want to travel to Japan for 10 days with $800.',
+          'I want to launch a website but have $0.',
+          'I want to relocate to Spain.'
         ];
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -73,18 +97,18 @@ export const HeroInput: React.FC<HeroInputProps> = ({ lang, onSubmit, isLoading 
 
         <h1 className="text-3xl sm:text-5xl font-black text-white tracking-tight leading-tight">
           {lang === 'fr'
-            ? 'Et si ton projet était possible ?'
+            ? 'Qu’est-ce que tu aimerais changer ou réaliser ?'
             : lang === 'es'
-            ? '¿Y si tu proyecto fuera posible?'
-            : 'What if your project were possible?'}
+            ? '¿Qué te gustaría cambiar o lograr?'
+            : 'What would you like to change or achieve?'}
         </h1>
 
         <p className="text-base sm:text-lg text-slate-400 max-w-xl mx-auto font-normal">
           {lang === 'fr'
-            ? 'Explique-moi simplement ce que tu veux faire.'
+            ? 'Explique-moi ton projet comme tu l’expliquerais à un ami…'
             : lang === 'es'
-            ? 'Cuéntame de forma sencilla lo que quieres hacer.'
-            : 'Simply describe what you want to achieve.'}
+            ? 'Explícame tu proyecto como se lo contarías a un amigo…'
+            : 'Tell me about your goal like you would to a friend…'}
         </p>
       </div>
 
@@ -98,10 +122,10 @@ export const HeroInput: React.FC<HeroInputProps> = ({ lang, onSubmit, isLoading 
             className="w-full bg-transparent text-white text-base sm:text-lg placeholder-slate-500 p-4 resize-none focus:outline-none leading-relaxed"
             placeholder={
               lang === 'fr'
-                ? 'Exemple : j’ai 8 000 €, je gagne 2 300 € par mois et j’aimerais ouvrir un petit commerce. Est-ce possible ?'
+                ? 'Explique-moi ton projet comme tu l’expliquerais à un ami…'
                 : lang === 'es'
-                ? 'Ejemplo: tengo 8 000 €, gano 2 300 € al mes y me gustaría abrir un pequeño comercio. ¿Es viable?'
-                : 'Example: I have $8,000, earn $2,300 per month and would like to open a small shop. Is it feasible?'
+                ? 'Explícame tu proyecto como se lo contarías a un amigo…'
+                : 'Explain your project as you would to a friend…'
             }
           />
 
@@ -157,8 +181,33 @@ export const HeroInput: React.FC<HeroInputProps> = ({ lang, onSubmit, isLoading 
         </p>
       </form>
 
+      {/* Section 2 Category Buttons */}
+      <div className="w-full mt-6 space-y-2 text-left">
+        <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-1">
+          {lang === 'fr'
+            ? 'Choisir une thématique :'
+            : lang === 'es'
+            ? 'Elegir una categoría:'
+            : 'Choose a project topic:'}
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {projectCategories.map((cat, idx) => (
+            <button
+              key={idx}
+              type="button"
+              onClick={() => {
+                setPrompt(cat.template);
+              }}
+              className="text-xs font-medium text-slate-300 bg-slate-900/60 hover:bg-indigo-950/50 hover:text-indigo-200 border border-slate-800 hover:border-indigo-500/40 px-3 py-1.5 rounded-lg transition-all cursor-pointer"
+            >
+              {cat.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Quick Prompts Suggestions */}
-      <div className="w-full mt-10 space-y-3 text-left">
+      <div className="w-full mt-8 space-y-3 text-left">
         <p className="text-xs font-semibold text-slate-400 uppercase tracking-wider px-1">
           {lang === 'fr'
             ? 'Ou clique sur un exemple fréquent :'
