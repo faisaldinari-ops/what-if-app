@@ -11,7 +11,8 @@ export type DataOrigin =
   | 'LIVE_SOURCE'
   | 'CALCULATED'
   | 'ESTIMATE'
-  | 'ASSUMPTION';
+  | 'ASSUMPTION'
+  | 'INTERNAL_BENCHMARK';
 
 export type Freshness =
   | 'LIVE'

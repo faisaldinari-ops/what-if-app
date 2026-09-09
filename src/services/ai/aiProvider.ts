@@ -8,6 +8,13 @@ export interface AIOptions {
   maxTokens?: number;
   responseFormat?: 'text' | 'json';
   timeoutMs?: number;
+  model?: string;
+}
+
+export interface QuotaInfo {
+  callsRemaining?: number;
+  resetTime?: string;
+  quotaStatus?: string;
 }
 
 export interface AIProvider {
@@ -18,8 +25,57 @@ export interface AIProvider {
   classify(text: string, categories: string[]): Promise<string>;
   extractStructuredData<T>(prompt: string, schemaDescription: string): Promise<T>;
   healthCheck(): Promise<boolean>;
-  remainingQuota(): Promise<{ callsRemaining?: number; resetTime?: string }>;
+  remainingQuota(): Promise<QuotaInfo>;
   estimatedCost(tokens: { input: number; output: number }): number;
+}
+
+/**
+ * STRICT FREE MODEL ALLOWLIST (ALLOW_PAID_AI=false)
+ * Only zero-cost/free-tier models explicitly registered here are authorized.
+ * If ALLOW_PAID_AI=false and a model is not on this list: REFUSAL.
+ */
+export const FREE_MODEL_ALLOWLIST: Record<string, string[]> = {
+  gemini: [
+    'gemini-2.5-flash',
+    'gemini-1.5-flash',
+    'gemini-2.0-flash',
+    'gemini-2.0-flash-lite'
+  ],
+  groq: [
+    'llama-3.1-8b-instant',
+    'llama-3.2-3b-preview',
+    'llama-3.2-1b-preview',
+    'mixtral-8x7b-32768'
+  ],
+  openrouter: [
+    'meta-llama/llama-3.2-3b-instruct:free',
+    'meta-llama/llama-3.1-8b-instruct:free',
+    'google/gemini-2.0-flash-exp:free',
+    'mistralai/mistral-7b-instruct:free'
+  ],
+  cloudflare: [
+    '@cf/meta/llama-3.1-8b-instruct',
+    '@cf/meta/llama-3.2-3b-instruct',
+    '@cf/meta/llama-3.2-1b-instruct'
+  ],
+  deterministic: ['RuleBasedEngine', 'DeterministicEngine']
+};
+
+export function isModelAllowedUnderFreeGuardrail(providerId: string, modelName: string): boolean {
+  const allowPaid = typeof process !== 'undefined' && process.env.ALLOW_PAID_AI === 'true';
+  if (allowPaid) return true;
+  if (providerId === 'deterministic') return true;
+
+  const allowedList = FREE_MODEL_ALLOWLIST[providerId] || [];
+  return allowedList.some((m) => m.toLowerCase() === modelName.toLowerCase());
+}
+
+export function assertFreeModelAllowed(providerId: string, modelName: string): void {
+  if (!isModelAllowedUnderFreeGuardrail(providerId, modelName)) {
+    throw new Error(
+      `[FREE_GUARDRAIL_REFUSAL] Model "${modelName}" for provider "${providerId}" is NOT in FREE_MODEL_ALLOWLIST and ALLOW_PAID_AI is false. Request REFUSED.`
+    );
+  }
 }
 
 /**
@@ -47,7 +103,9 @@ export class GeminiProvider implements AIProvider {
     const ai = this.getClient();
     if (!ai) throw new Error('GEMINI_API_KEY is not configured');
 
-    const modelName = 'gemini-2.5-flash';
+    const modelName = options?.model || 'gemini-2.5-flash';
+    assertFreeModelAllowed(this.id, modelName);
+
     const response = await ai.models.generateContent({
       model: modelName,
       contents: prompt,
@@ -81,8 +139,8 @@ export class GeminiProvider implements AIProvider {
     return JSON.parse(raw) as T;
   }
 
-  public async remainingQuota(): Promise<{ callsRemaining?: number; resetTime?: string }> {
-    return { callsRemaining: 1500, resetTime: 'daily' };
+  public async remainingQuota(): Promise<QuotaInfo> {
+    return { callsRemaining: undefined, quotaStatus: 'UNKNOWN' };
   }
 
   public estimatedCost(tokens: { input: number; output: number }): number {
@@ -121,6 +179,9 @@ export class GroqProvider implements AIProvider {
       }
       messages.push({ role: 'user', content: prompt });
 
+      const modelName = options?.model || 'llama-3.1-8b-instant';
+      assertFreeModelAllowed(this.id, modelName);
+
       const res = await fetch('https://api.groq.com/openai/v1/chat/completions', {
         method: 'POST',
         headers: {
@@ -128,7 +189,7 @@ export class GroqProvider implements AIProvider {
           Authorization: `Bearer ${apiKey}`
         },
         body: JSON.stringify({
-          model: 'llama-3.1-8b-instant',
+          model: modelName,
           messages,
           temperature: options?.temperature ?? 0.2,
           max_tokens: options?.maxTokens ?? 1000,
@@ -161,8 +222,8 @@ export class GroqProvider implements AIProvider {
     return JSON.parse(raw) as T;
   }
 
-  public async remainingQuota(): Promise<{ callsRemaining?: number; resetTime?: string }> {
-    return { callsRemaining: 14400, resetTime: 'daily' };
+  public async remainingQuota(): Promise<QuotaInfo> {
+    return { callsRemaining: undefined, quotaStatus: 'UNKNOWN' };
   }
 
   public estimatedCost(): number {
@@ -190,6 +251,9 @@ export class OpenRouterProvider implements AIProvider {
     const apiKey = this.getApiKey();
     if (!apiKey) throw new Error('OPENROUTER_API_KEY is not configured');
 
+    const modelName = options?.model || 'meta-llama/llama-3.2-3b-instruct:free';
+    assertFreeModelAllowed(this.id, modelName);
+
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), options?.timeoutMs || 8000);
 
@@ -209,7 +273,7 @@ export class OpenRouterProvider implements AIProvider {
           'X-Title': 'WHAT IF Decision CoPilot'
         },
         body: JSON.stringify({
-          model: 'meta-llama/llama-3.2-3b-instruct:free',
+          model: modelName,
           messages,
           temperature: options?.temperature ?? 0.2,
           max_tokens: options?.maxTokens ?? 1000
@@ -243,8 +307,8 @@ export class OpenRouterProvider implements AIProvider {
     return JSON.parse(jsonMatch[0]) as T;
   }
 
-  public async remainingQuota(): Promise<{ callsRemaining?: number; resetTime?: string }> {
-    return { callsRemaining: 200, resetTime: 'daily' };
+  public async remainingQuota(): Promise<QuotaInfo> {
+    return { callsRemaining: undefined, quotaStatus: 'UNKNOWN' };
   }
 
   public estimatedCost(): number {
@@ -277,8 +341,11 @@ export class CloudflareProvider implements AIProvider {
     const { apiKey, accountId } = this.getCredentials();
     if (!apiKey || !accountId) throw new Error('CLOUDFLARE credentials not configured');
 
+    const modelName = options?.model || '@cf/meta/llama-3.1-8b-instruct';
+    assertFreeModelAllowed(this.id, modelName);
+
     const res = await fetch(
-      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/@cf/meta/llama-3.1-8b-instruct`,
+      `https://api.cloudflare.com/client/v4/accounts/${accountId}/ai/run/${modelName}`,
       {
         method: 'POST',
         headers: {
@@ -317,8 +384,8 @@ export class CloudflareProvider implements AIProvider {
     return JSON.parse(jsonMatch[0]) as T;
   }
 
-  public async remainingQuota(): Promise<{ callsRemaining?: number; resetTime?: string }> {
-    return { callsRemaining: 10000, resetTime: 'daily' };
+  public async remainingQuota(): Promise<QuotaInfo> {
+    return { callsRemaining: undefined, quotaStatus: 'UNKNOWN' };
   }
 
   public estimatedCost(): number {
@@ -365,8 +432,8 @@ export class DeterministicProvider implements AIProvider {
     } as unknown as T;
   }
 
-  public async remainingQuota(): Promise<{ callsRemaining?: number; resetTime?: string }> {
-    return { callsRemaining: 999999999 };
+  public async remainingQuota(): Promise<QuotaInfo> {
+    return { callsRemaining: undefined, quotaStatus: 'UNLIMITED_LOCAL' };
   }
 
   public estimatedCost(): number {

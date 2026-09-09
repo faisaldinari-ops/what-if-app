@@ -43,7 +43,7 @@ export function assessJobMarket(
         'job_demand_electrician',
         `Tension du marché pour électricien (${targetCountry})`,
         'Métier en pénurie structurelle / Forte demande de recrutement',
-        'Pôle Emploi / Eurostat Labour Shortages Index 2025-2026',
+        'Référentiel indicatif des métiers en tension',
         undefined,
         false,
         false,

@@ -6,7 +6,9 @@ import {
   OpenRouterProvider,
   CloudflareProvider,
   DeterministicProvider,
-  AIOptions
+  AIOptions,
+  FREE_MODEL_ALLOWLIST,
+  isModelAllowedUnderFreeGuardrail
 } from './aiProvider';
 import { telemetry } from './telemetryService';
 import { cacheService } from './cacheService';
@@ -83,11 +85,27 @@ export class AIRouter {
    */
   public getCandidateProviders(task: TaskComplexity): AIProvider[] {
     const chain: AIProvider[] = [];
+    const allowPaidAi = typeof process !== 'undefined' && process.env.ALLOW_PAID_AI === 'true';
+
     const checkAndAdd = (id: string) => {
       const p = this.providers.get(id);
-      if (p && this.isCircuitAvailable(id)) {
-        chain.push(p);
+      if (!p) return;
+      if (!this.isCircuitAvailable(id)) return;
+
+      // STRICT FREE GUARDRAIL: When ALLOW_PAID_AI=false, only explicitly authorized free-tier models are accepted
+      if (!allowPaidAi) {
+        if (!p.isFreeTier && id !== 'deterministic') {
+          console.warn(`[AIRouter] Refusing paid provider "${id}" because ALLOW_PAID_AI is false.`);
+          return;
+        }
+        const allowedModels = FREE_MODEL_ALLOWLIST[id];
+        if (!allowedModels || allowedModels.length === 0) {
+          console.warn(`[AIRouter] Refusing provider "${id}" because no models exist in FREE_MODEL_ALLOWLIST.`);
+          return;
+        }
       }
+
+      chain.push(p);
     };
 
     // Budget guard: if daily budget is exceeded, force deterministic / free only

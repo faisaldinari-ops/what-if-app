@@ -26,7 +26,7 @@ export const CopilotTrustStrip: React.FC<CopilotTrustStripProps> = ({ facts = []
       label: lang === 'fr' ? 'Indices officiels' : 'Official Benchmarks',
       badge: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30',
       icon: Database,
-      desc: lang === 'fr' ? 'Bases INSEE, Eurostat, URSSAF et barèmes légaux.' : 'INSEE, Eurostat, national registries.'
+      desc: lang === 'fr' ? 'Registres officiels, barèmes légaux et recherche web en direct.' : 'Official registries, legal benchmarks, and live search.'
     },
     {
       type: 'ESTIMATION',

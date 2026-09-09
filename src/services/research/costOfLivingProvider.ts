@@ -209,10 +209,10 @@ export function getCountryLivingCosts(countryName: string): CountryLivingCosts {
           `col_${key}_rent`,
           `Loyer moyen 1 pièce (${profile.country})`,
           `~${profile.monthlyRent1BedCityCenter} € (centre-ville) / ~${profile.monthlyRent1BedOutside} € (hors centre)`,
-          'Indice Eurostat / Statistiques nationales 2025-2026',
+          'Référentiel indicatif de coût de la vie',
           undefined,
           false,
-          false,
+          true,
           'Estimation de référence pour une personne seule.'
         ),
         createGroundedFact(

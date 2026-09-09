@@ -153,16 +153,16 @@ export function orchestrateDecisionCoPilot(
       {
         label: `Vols A/R indicatifs (${dest})`,
         value: `${travelBreakdown.flights.min} € - ${travelBreakdown.flights.comfortable} €`,
-        source: 'Indice Aérien Kayak/Skyscanner 2025/2026',
+        source: 'Référentiel indicatif de transport',
         confidence: 'high',
-        isEstimate: false
+        isEstimate: true
       },
       {
         label: `Budget moyen sur place / jour (${dest})`,
         value: `${Math.round(travelBreakdown.accommodation.realistic / days + travelBreakdown.food.realistic / days)} €/jour (logement + repas)`,
-        source: 'Offices de Tourisme & INSEE Voyage',
+        source: 'Référentiel indicatif d’hébergement et séjour',
         confidence: 'high',
-        isEstimate: false
+        isEstimate: true
       }
     ];
   } else if (domain === 'relocation' || (domain === 'life_change' && (p.includes('quitter') || p.includes('autre pays')))) {

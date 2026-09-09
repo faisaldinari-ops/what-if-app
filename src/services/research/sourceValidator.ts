@@ -70,7 +70,7 @@ export function validateSourceProvenance(
       confidence: 'high',
       freshness: isLiveQuery ? 'LIVE' : 'RECENT',
       isLegitimate: true,
-      provenance: isLiveQuery ? 'LIVE_SOURCE' : 'ESTIMATE',
+      provenance: isLiveQuery ? 'LIVE_SOURCE' : 'INTERNAL_BENCHMARK',
       notes: 'Source officielle gouvernementale ou administrative.'
     };
   }
@@ -91,7 +91,7 @@ export function validateSourceProvenance(
       confidence: 'high',
       freshness: isLiveQuery ? 'LIVE' : 'RECENT',
       isLegitimate: true,
-      provenance: isLiveQuery ? 'LIVE_SOURCE' : 'ESTIMATE',
+      provenance: isLiveQuery ? 'LIVE_SOURCE' : 'INTERNAL_BENCHMARK',
       notes: 'Institution statistique internationale de référence.'
     };
   }
@@ -112,7 +112,7 @@ export function validateSourceProvenance(
       confidence: 'high',
       freshness: isLiveQuery ? 'LIVE' : 'RECENT',
       isLegitimate: true,
-      provenance: isLiveQuery ? 'LIVE_SOURCE' : 'ESTIMATE',
+      provenance: isLiveQuery ? 'LIVE_SOURCE' : 'INTERNAL_BENCHMARK',
       notes: 'Organisme professionnel officiel / chambre consulaire.'
     };
   }
@@ -127,15 +127,15 @@ export function validateSourceProvenance(
     s.includes('booking')
   ) {
     return {
-      sourceName: isLiveQuery ? sourceName : `${sourceName} (Benchmark indicatif)`,
+      sourceName: isLiveQuery ? sourceName : `${sourceName} (Référentiel indicatif)`,
       tier: 'recognized_platform',
       confidence: isLiveQuery ? 'high' : 'medium',
       freshness: isLiveQuery ? 'LIVE' : 'RECENT',
       isLegitimate: true,
-      provenance: isLiveQuery ? 'LIVE_SOURCE' : 'ESTIMATE',
+      provenance: isLiveQuery ? 'LIVE_SOURCE' : 'INTERNAL_BENCHMARK',
       notes: isLiveQuery
         ? 'Données de plateforme agrégée en temps réel.'
-        : 'Données indicatives issues d’indices de marché récents.'
+        : 'Données indicatives issues de référentiels de marché.'
     };
   }
 
@@ -146,8 +146,8 @@ export function validateSourceProvenance(
     confidence: 'medium',
     freshness: 'RECENT',
     isLegitimate: true,
-    provenance: 'ESTIMATE',
-    notes: 'Données de référence sectorielles.'
+    provenance: 'INTERNAL_BENCHMARK',
+    notes: 'Données issues de référentiels sectoriels indicatifs.'
   };
 }
 

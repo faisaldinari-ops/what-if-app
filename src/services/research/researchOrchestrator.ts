@@ -8,6 +8,9 @@ import { checkImmigrationAndWorkLegality, checkTradeRegulation } from './regulat
 import { researchTravelCosts } from './travelProvider';
 import { assessBusinessFeasibility } from './businessProvider';
 import { createGroundedFact } from './sourceValidator';
+import { executeGroundedSearch } from './webSearchProvider';
+import { cacheService } from '../ai/cacheService';
+import { telemetry } from '../ai/telemetryService';
 
 export interface DynamicRelocationResult {
   shortlist: DestinationShortlistOption[];
@@ -266,10 +269,10 @@ export function buildDynamicRelocationShortlist(
         `dest_fact_${m.key}`,
         `Indice de coût de la vie (${m.profile.country})`,
         `${m.profile.costOfLivingIndexVsFrance} (base 100 France) | Loyer moyen 1P : ~${m.profile.monthlyRent1BedCityCenter} €/mois`,
-        'Eurostat / Statistiques nationales 2025-2026',
+        'Référentiel indicatif du coût de la vie',
         undefined,
         false,
-        false
+        true
       )
     );
   });
@@ -279,4 +282,199 @@ export function buildDynamicRelocationShortlist(
     facts,
     warnings
   };
+}
+
+export interface OrchestratedResearchResult {
+  query: string;
+  facts: GroundedFact[];
+  searchMode: 'LIVE' | 'BENCHMARK';
+  sourceUrls: string[];
+  summary: string;
+  retrievedAt: string;
+  providerUsed: string;
+}
+
+/**
+ * ORCHESTRATE RESEARCH PIPELINE
+ * Sequence:
+ * 1. Data requirement analysis
+ * 2. Cache inspection
+ * 3. Live Web Search (if provider configured)
+ * 4. Grounded Facts extraction
+ * 5. Transparent fallback to certified internal benchmarks (if live search unavailable)
+ * 6. Calculation & Synthesis
+ */
+export async function orchestrateResearch(
+  query: string,
+  domain?: ProjectDomain,
+  userProfile?: Partial<UserContext>,
+  forceRefresh: boolean = false
+): Promise<OrchestratedResearchResult> {
+  const startTime = Date.now();
+  const cacheKey = `research:${domain || 'general'}:${query.trim().toLowerCase()}`;
+
+  // 1. Cache Inspection
+  if (!forceRefresh) {
+    const cached = cacheService.get<OrchestratedResearchResult>(cacheKey);
+    if (cached) {
+      telemetry.recordOperation({
+        provider: 'cache',
+        model: 'research-cache',
+        taskType: 'synthesis',
+        llmCalls: 0,
+        searchCalls: 0,
+        inputTokens: 0,
+        outputTokens: 0,
+        latencyMs: 1,
+        estimatedCostUsd: 0,
+        cacheHit: true,
+        fallbackUsed: false,
+        status: 'success'
+      });
+      return cached;
+    }
+  }
+
+  // 2. Real Live Web Search Attempt
+  const webResult = await executeGroundedSearch(query, {
+    priorityCategory: domain === 'business' ? 'official_aids' : undefined,
+    maxResults: 5
+  });
+
+  if (webResult.searchMode === 'LIVE' && webResult.facts.length > 0) {
+    const sourceUrls = webResult.facts
+      .map((f) => f.sourceUrl)
+      .filter((u): u is string => typeof u === 'string' && u.length > 0);
+
+    const orchestrated: OrchestratedResearchResult = {
+      query,
+      facts: webResult.facts,
+      searchMode: 'LIVE',
+      sourceUrls,
+      summary: webResult.summary,
+      retrievedAt: webResult.retrievedAt,
+      providerUsed: webResult.sourceName || 'Web Search'
+    };
+
+    cacheService.set(cacheKey, orchestrated, 'live_prices');
+
+    telemetry.recordOperation({
+      provider: orchestrated.providerUsed,
+      model: 'web-search-engine',
+      taskType: 'synthesis',
+      llmCalls: 0,
+      searchCalls: 1,
+      inputTokens: Math.round(query.length / 4),
+      outputTokens: Math.round(JSON.stringify(webResult.facts).length / 4),
+      latencyMs: Date.now() - startTime,
+      estimatedCostUsd: 0,
+      cacheHit: false,
+      fallbackUsed: false,
+      status: 'success'
+    });
+
+    return orchestrated;
+  }
+
+  // 3. Fallback to Certified Internal Benchmarks (Without fake sources)
+  const facts: GroundedFact[] = [];
+  const q = query.toLowerCase();
+
+  if (domain === 'relocation' || q.includes('espagne') || q.includes('portugal') || q.includes('japon')) {
+    const countryKey = q.includes('espagne') ? 'espagne' : q.includes('portugal') ? 'portugal' : q.includes('japon') ? 'japon' : 'espagne';
+    const costs = getCountryLivingCosts(countryKey);
+    facts.push(
+      createGroundedFact(
+        `bench_col_${countryKey}`,
+        `Indice de coût de la vie (${costs.country})`,
+        `${costs.costOfLivingIndexVsFrance} (base 100 France) | Loyer moyen studio : ~${costs.monthlyRent1BedCityCenter} €/mois`,
+        'Référentiel indicatif du coût de la vie',
+        undefined,
+        false,
+        false,
+        'Données issues de référentiels statistiques sectoriels récents.'
+      )
+    );
+  } else if (domain === 'travel' || q.includes('voyage') || q.includes('billet') || q.includes('vol')) {
+    facts.push(
+      createGroundedFact(
+        'bench_travel_rate',
+        'Ordre de grandeur transport et séjour',
+        'Vols et hébergements estimés selon barèmes saisonniers indicatifs.',
+        'Référentiel indicatif de mobilité et transport',
+        undefined,
+        false,
+        false,
+        'Fourchettes estimatives moyennes sans interrogation de transporteur en temps réel.'
+      )
+    );
+  } else if (domain === 'business' || q.includes('entreprise') || q.includes('aide') || q.includes('acre')) {
+    facts.push(
+      createGroundedFact(
+        'bench_acre_exoneration',
+        'Dispositif ACRE (Exonération de cotisations sociales)',
+        'Exonération partielle de charges sociales la 1ère année d’activité.',
+        'Code de la sécurité sociale / Dispositif public ACRE',
+        'https://www.service-public.fr/professionnels-entreprises/vosdroits/F11677',
+        false,
+        false,
+        'Dispositif officiel d’État pour créateurs et repreneurs d’entreprise.'
+      )
+    );
+    facts.push(
+      createGroundedFact(
+        'bench_arce_chomage',
+        'Dispositif ARCE (Capitalisation France Travail)',
+        'Versement de 60 % du reliquat des droits sous forme de capital d’amorçage.',
+        'Règlementation France Travail',
+        'https://www.francetravail.fr/candidat/mes-droits-aux-aides-et-allocat/aides-financieres-et-accompagnem/arce.html',
+        false,
+        false,
+        'Dispositif officiel pour demandeurs d’emploi créant une entreprise.'
+      )
+    );
+  } else {
+    facts.push(
+      createGroundedFact(
+        'bench_general_financial',
+        'Ordre de grandeur budgétaire',
+        'Estimations formulées selon les ratios de trésorerie prudents (matelas de 3 à 6 mois).',
+        'Référentiel interne de modélisation financière',
+        undefined,
+        false,
+        false,
+        'Modèle de calcul financier sans recherche web externe active.'
+      )
+    );
+  }
+
+  const orchestrated: OrchestratedResearchResult = {
+    query,
+    facts,
+    searchMode: 'BENCHMARK',
+    sourceUrls: facts.map((f) => f.sourceUrl).filter((u): u is string => !!u),
+    summary: 'Recherche web en direct non active. Mobilisation des barèmes et référentiels officiels de référence.',
+    retrievedAt: new Date().toISOString(),
+    providerUsed: 'Certified Internal Benchmarks'
+  };
+
+  cacheService.set(cacheKey, orchestrated, 'cost_of_living');
+
+  telemetry.recordOperation({
+    provider: 'deterministic',
+    model: 'benchmark-database',
+    taskType: 'synthesis',
+    llmCalls: 0,
+    searchCalls: 0,
+    inputTokens: 0,
+    outputTokens: 0,
+    latencyMs: Date.now() - startTime,
+    estimatedCostUsd: 0,
+    cacheHit: false,
+    fallbackUsed: true,
+    fallbackReason: 'Live search unavailable or unconfigured; used certified benchmarks',
+    status: 'success'
+  });
+
+  return orchestrated;
 }

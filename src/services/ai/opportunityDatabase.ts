@@ -87,7 +87,7 @@ export const OFFICIAL_OPPORTUNITIES_CATALOG: OpportunityTemplate[] = [
     potentialValue: 'Jusqu’à 60 % de vos droits chômage restants (~6 000 € à 18 000 € en capital)',
     baseEstimatedAmount: 7500,
     valueType: 'direct_grant',
-    officialSource: 'France Travail (Pôle Emploi)',
+    officialSource: 'France Travail',
     sourceUrl: 'https://www.francetravail.fr/candidat/mes-droits-aux-aides-et-allocat/aides-financieres-et-autres-dis/aide-a-la-reprise-ou-a-la-creat.html',
     retrievedAt: 'Septembre 2026',
     deadline: 'Permanent (demande dès immatriculation)',

@@ -44,7 +44,7 @@ export const RELOCATION_PROFILES: RelocationCountryProfile[] = [
     languageRequired: 'Espagnol (bases recommandées, anglais dans les pôles tech)',
     difficultyLevel: 'Facile',
     visaStatusEuCitizens: 'Libre circulation UE (Enregistrement NIE résident sous 3 mois)',
-    source: 'INE Espagne & Eurostat 2025'
+    source: 'Référentiel indicatif de mobilité'
   },
   {
     id: 'portugal',

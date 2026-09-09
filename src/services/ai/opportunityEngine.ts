@@ -1,7 +1,9 @@
 // src/services/ai/opportunityEngine.ts
 import { UserContext, ProjectDomain } from '../../types/context';
 import { DestinationShortlistOption } from '../../types/planning';
+import { GroundedFact } from '../../types/provenance';
 import { buildDynamicRelocationShortlist } from '../research/researchOrchestrator';
+import { executeGroundedSearch } from '../research/webSearchProvider';
 import {
   BenefitOpportunity,
   OpportunityCategory,
@@ -51,6 +53,9 @@ export interface OpportunityEngineResult {
     normal: { title: string; cost: number; durationMonths: number; description: string; risk: string };
     ambitious: { title: string; cost: number; durationMonths: number; description: string; risk: string };
   };
+  liveSearchConducted?: boolean;
+  liveFacts?: GroundedFact[];
+  verifiedSources?: string[];
 }
 
 /**
@@ -603,3 +608,101 @@ export function detectOpportunities(
     }
   };
 }
+
+/**
+ * Enriches opportunities with live web search results from verified government/public portals.
+ * Extracts real official URLs and facts, adding them directly to the opportunity matrix.
+ */
+export async function enrichOpportunitiesWithLiveSearch(
+  baseResult: OpportunityEngineResult,
+  prompt: string,
+  domain?: ProjectDomain
+): Promise<OpportunityEngineResult> {
+  const isBusiness =
+    domain === 'business' ||
+    domain === 'digital_project' ||
+    /entreprise|société|societe|créer|creer|micro|sasu|sarl|eurl|artisan|commerce/i.test(prompt);
+
+  const query = isBusiness
+    ? `aides subventions creation reprise entreprise ${prompt}`
+    : `aides financements dispositifs officiels ${prompt}`;
+
+  const searchRes = await executeGroundedSearch(query, {
+    priorityCategory: 'official_aids',
+    maxResults: 5
+  });
+
+  if (searchRes.searchMode === 'LIVE' && searchRes.facts.length > 0) {
+    const verifiedSources: string[] = [];
+    const newSubsidies = [...baseResult.subsidiesAndGrants];
+    const newOpportunities = [...baseResult.opportunities];
+
+    for (const fact of searchRes.facts) {
+      if (fact.sourceUrl) {
+        verifiedSources.push(fact.sourceUrl);
+
+        // Add to subsidies & grants if URL is not already present
+        const alreadyExists = newSubsidies.some((s) => s.officialUrl === fact.sourceUrl);
+        if (!alreadyExists) {
+          newSubsidies.push({
+            name: fact.label,
+            organization: fact.sourceName || 'Portail Officiel',
+            estimatedAmount: 'Variable selon statut et critères territoriaux',
+            eligibilityCriteria: 'Consulter les critères officiels sur le portail',
+            officialUrl: fact.sourceUrl
+          });
+        }
+
+        // Add to unconsidered opportunities
+        newOpportunities.push({
+          id: `opp_live_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+          type: 'subsidy_aid',
+          title: fact.label,
+          tagline: `Source en direct : ${fact.sourceName || 'Portail Officiel'}`,
+          description: String(fact.value),
+          impactScore: 90,
+          financialGainOrSaving: 'Dispositif ou subvention à mobiliser',
+          actionRequired: `Consulter la démarche officielle : ${fact.sourceUrl}`,
+          badge: 'Source en direct'
+        });
+      }
+    }
+
+    return {
+      ...baseResult,
+      subsidiesAndGrants: newSubsidies,
+      opportunities: newOpportunities,
+      liveSearchConducted: true,
+      liveFacts: searchRes.facts,
+      verifiedSources
+    };
+  }
+
+  return {
+    ...baseResult,
+    liveSearchConducted: false,
+    liveFacts: [],
+    verifiedSources: []
+  };
+}
+
+/**
+ * Async generator for opportunity map that triggers live web search when configured.
+ */
+export async function generateOpportunityMapAsync(
+  prompt: string,
+  userProfile?: Partial<UserContext>,
+  domain?: ProjectDomain
+): Promise<OpportunityEngineResult> {
+  const syncResult = detectOpportunities(
+    prompt,
+    domain || 'general',
+    userProfile?.budget || 0,
+    (userProfile as any)?.projectStartupCost || 3000,
+    userProfile as any
+  );
+  return enrichOpportunitiesWithLiveSearch(syncResult, prompt, domain);
+}
+
+export const generateOpportunityMap = detectOpportunities;
+

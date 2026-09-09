@@ -111,7 +111,7 @@ export function auditDecisionAnalysisDeterministically(
       type: 'source_grounding',
       severity: 'info',
       message: 'Sources de référence partielles.',
-      recommendation: 'Associer les indices officiels INSEE et Eurostat.'
+      recommendation: 'Associer des sources officielles vérifiées et référentiels publics.'
     });
   }
 

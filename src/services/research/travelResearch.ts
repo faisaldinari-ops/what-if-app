@@ -28,8 +28,8 @@ const DESTINATION_BENCHMARKS: Record<string, TravelBenchmarkData> = {
     flightRangeComfort: 1350,
     localTransportDay: 15,
     currency: 'EUR',
-    source: 'JNTO & Kayak Aviation Index 2025/2026',
-    isEstimate: false
+    source: 'Référentiel indicatif de voyage',
+    isEstimate: true
   },
   espagne: {
     destination: 'Espagne (Barcelone / Madrid / Séville)',
@@ -42,8 +42,8 @@ const DESTINATION_BENCHMARKS: Record<string, TravelBenchmarkData> = {
     flightRangeComfort: 280,
     localTransportDay: 8,
     currency: 'EUR',
-    source: 'Instituto Nacional de Estadística & Skyscanner 2025',
-    isEstimate: false
+    source: 'Référentiel indicatif de voyage',
+    isEstimate: true
   },
   portugal: {
     destination: 'Portugal (Lisbonne / Porto / Algarve)',
@@ -56,8 +56,8 @@ const DESTINATION_BENCHMARKS: Record<string, TravelBenchmarkData> = {
     flightRangeComfort: 260,
     localTransportDay: 7,
     currency: 'EUR',
-    source: 'Turismo de Portugal 2025',
-    isEstimate: false
+    source: 'Référentiel indicatif de voyage',
+    isEstimate: true
   },
   thailande: {
     destination: 'Thaïlande (Bangkok / Chiang Mai / Îles)',
@@ -70,8 +70,8 @@ const DESTINATION_BENCHMARKS: Record<string, TravelBenchmarkData> = {
     flightRangeComfort: 1100,
     localTransportDay: 6,
     currency: 'EUR',
-    source: 'Tourism Authority of Thailand 2025',
-    isEstimate: false
+    source: 'Référentiel indicatif de voyage',
+    isEstimate: true
   },
   usa: {
     destination: 'États-Unis (New York / Miami / Californie)',
@@ -84,8 +84,8 @@ const DESTINATION_BENCHMARKS: Record<string, TravelBenchmarkData> = {
     flightRangeComfort: 1200,
     localTransportDay: 20,
     currency: 'EUR',
-    source: 'US Bureau of Labor Statistics & Kayak 2025',
-    isEstimate: false
+    source: 'Référentiel indicatif de voyage',
+    isEstimate: true
   },
   italie: {
     destination: 'Italie (Rome / Florence / Côte Amalfitaine)',
@@ -98,8 +98,8 @@ const DESTINATION_BENCHMARKS: Record<string, TravelBenchmarkData> = {
     flightRangeComfort: 300,
     localTransportDay: 10,
     currency: 'EUR',
-    source: 'Istat & Skyscanner Europe 2025',
-    isEstimate: false
+    source: 'Référentiel indicatif de voyage',
+    isEstimate: true
   },
   maroc: {
     destination: 'Maroc (Marrakech / Essaouira / Fès)',
