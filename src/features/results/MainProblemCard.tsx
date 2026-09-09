@@ -44,7 +44,7 @@ export const MainProblemCard: React.FC<MainProblemCardProps> = ({
 
       <h4 className="text-base sm:text-lg font-bold text-white tracking-tight">{title}</h4>
 
-      <p className="text-xs sm:text-sm text-slate-300 leading-relaxed">{description}</p>
+      <p className="text-sm sm:text-base text-slate-200 leading-relaxed font-normal">{description}</p>
     </div>
   );
 };

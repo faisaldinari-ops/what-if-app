@@ -3,6 +3,7 @@ import { parseProjectWithRules } from '../src/services/ai/ruleBasedParser';
 import { calculateFeasibility } from '../src/logic/feasibilityEngine';
 import { detectOpportunities } from '../src/services/ai/opportunityEngine';
 import { auditDecisionAnalysisDeterministically } from '../src/services/ai/criticAgent';
+import { buildAdaptiveLevel1Summary } from '../src/services/ai/adaptiveDepthEngine';
 
 interface TestScenario {
   id: string;
@@ -98,6 +99,12 @@ const SCENARIOS: TestScenario[] = [
     name: '100 000 € dormant sur compte',
     prompt: "J'ai 100 000 € d'économies qui dorment sur mon compte.",
     expectedCategory: 'money'
+  },
+  {
+    id: 'O',
+    name: 'Japon 2 semaines avec 2000 € salaire et 2000 € dépenses',
+    prompt: "Je gagne 2000 €, je dépense 2000 € et je veux aller 2 semaines au Japon",
+    expectedCategory: 'personal'
   }
 ];
 
@@ -144,6 +151,16 @@ export function runAllScenarios() {
         // Car purchase check
         if (parsed.data.projectStartupCost !== 15000 && analysis.metrics.budgetNeeded !== 15000) {
           throw new Error(`Scenario E expected 15 000 € target cost, got ${parsed.data.projectStartupCost} / ${analysis.metrics.budgetNeeded}`);
+        }
+      }
+
+      if (sc.id === 'O') {
+        const adaptive = buildAdaptiveLevel1Summary(analysis, parsed.data, 'fr', 'EUR');
+        if (!adaptive.headlineVerdict.toLowerCase().includes('faisable')) {
+          throw new Error(`Scenario O should have positive solution-oriented verdict, got: ${adaptive.headlineVerdict}`);
+        }
+        if (adaptive.primaryAction.actionType !== 'SAVINGS_FINDER') {
+          throw new Error(`Scenario O primary action must be SAVINGS_FINDER, got ${adaptive.primaryAction.actionType}`);
         }
       }
 

@@ -48,7 +48,7 @@ export const KeyMetricsGrid: React.FC<KeyMetricsGridProps> = ({
           <div className="font-mono font-black text-lg sm:text-xl text-white">
             {formatCurrency(budgetAvailable, currency)}
           </div>
-          <span className="text-[10px] text-slate-400">
+          <span className="text-xs text-slate-400 font-medium">
             {lang === 'fr' ? 'Épargne liquide' : lang === 'es' ? 'Ahorro actual' : 'Current savings'}
           </span>
         </div>
@@ -68,7 +68,7 @@ export const KeyMetricsGrid: React.FC<KeyMetricsGridProps> = ({
           <div className="font-mono font-black text-lg sm:text-xl text-white">
             {formatCurrency(budgetNeeded, currency)}
           </div>
-          <span className="text-[10px] text-slate-400">
+          <span className="text-xs text-slate-400 font-medium">
             {lang === 'fr' ? 'Avec réserve sécurité' : lang === 'es' ? 'Con fondo seguridad' : 'Includes buffer'}
           </span>
         </div>
@@ -97,7 +97,7 @@ export const KeyMetricsGrid: React.FC<KeyMetricsGridProps> = ({
             {gap >= 0 ? '+' : ''}
             {formatCurrency(gap, currency)}
           </div>
-          <span className="text-[10px] text-slate-400">
+          <span className="text-xs text-slate-400 font-medium">
             {gap >= 0
               ? lang === 'fr'
                 ? 'Excédent protecteur'
@@ -128,7 +128,7 @@ export const KeyMetricsGrid: React.FC<KeyMetricsGridProps> = ({
             {monthlyMargin >= 0 ? '+' : ''}
             {formatCurrency(monthlyMargin, currency)}
           </div>
-          <span className="text-[10px] text-slate-400">
+          <span className="text-xs text-slate-400 font-medium">
             {monthlyMargin >= 0
               ? lang === 'fr'
                 ? 'Flux net positif'
@@ -154,7 +154,7 @@ export const KeyMetricsGrid: React.FC<KeyMetricsGridProps> = ({
           <div className="font-mono font-black text-lg sm:text-xl text-white">
             {realisticMonths} {lang === 'fr' ? 'mois' : lang === 'es' ? 'meses' : 'months'}
           </div>
-          <span className="text-[10px] text-slate-400">
+          <span className="text-xs text-slate-400 font-medium">
             {lang === 'fr'
               ? 'Pour lancer sans risque'
               : lang === 'es'

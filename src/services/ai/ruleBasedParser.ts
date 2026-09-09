@@ -195,7 +195,26 @@ export const BENCHMARK_ARCHETYPES: BenchmarkArchetype[] = [
   },
   {
     category: 'personal',
-    keywords: ['voiture', 'acheter une voiture', 'véhicule', 'auto', 'car', 'moto', 'sabbatique', 'voyage', 'tour du monde'],
+    keywords: ['japon', 'voyage', 'vacances', 'semaines au', 'semaine au', 'road trip', 'voyager', 'séjour', 'partir au japon'],
+    defaultTitle: 'Voyage / Séjour au Japon (2 semaines)',
+    estimatedStartupCost: 2400, // Vols A/R (~900€), hébergement 14 nuits (~900€), vie & transports (~600€)
+    estimatedMonthlyCost: 0,
+    estimatedRevenue: 0,
+    rampUpMonths: 1,
+    minimumSafetyBuffer: 400,
+    typicalRisks: [
+      'Variation du coût des billets d’avion selon la saison (haute saison)',
+      'Frais de change et paiements carte bancaire à l’étranger',
+      'Assurance voyage et santé non comprise'
+    ],
+    reducedVariantDescription: 'Séjour de 10 jours en hébergement type guesthouse moderne, ramenant le coût à 1 600 €.',
+    reducedCostRatio: 0.65,
+    minimalVariantDescription: 'Voyage hors saison avec vols avec escale et JR Pass régional, ramenant le coût à 1 200 €.',
+    minimalCostRatio: 0.50
+  },
+  {
+    category: 'personal',
+    keywords: ['voiture', 'acheter une voiture', 'véhicule', 'auto', 'car', 'moto', 'sabbatique', 'tour du monde'],
     defaultTitle: 'Achat Véhicule / Projet Personnel',
     estimatedStartupCost: 12000,
     estimatedMonthlyCost: 350,
@@ -230,11 +249,23 @@ export function extractNumbersFromText(text: string): {
   const cleanText = text.replace(/[\u202F\u00A0]/g, ' ').toLowerCase();
 
   // 1. Budget / savings patterns: "j'ai 5000 €", "budget de 8000", "avec 20k", "épargne 15 000"
-  const budgetMatches = cleanText.match(
-    /(?:j['’]ai|avec|budget|épargne|apport|capital|économies|tengo|ahorros|i have|savings of|capital of)\s*(?:de\s*)?([0-9]+(?:\s*[0-9]{3})*|[0-9]+k)\s*(?:€|\$|£|chf|euros|euros?|dollars?)/i
-  );
-  if (budgetMatches && budgetMatches[1]) {
-    result.budget = parseAmountString(budgetMatches[1]);
+  if (
+    cleanText.includes('sans apport') ||
+    cleanText.includes('sans épargne') ||
+    cleanText.includes("pas d'épargne") ||
+    cleanText.includes("aucune épargne") ||
+    cleanText.includes("rien de côté") ||
+    cleanText.includes("j'ai 0") ||
+    cleanText.includes("avec 0")
+  ) {
+    result.budget = 0;
+  } else {
+    const budgetMatches = cleanText.match(
+      /(?:j['’]ai|avec|budget|épargne|apport|capital|économies|tengo|ahorros|i have|savings of|capital of)\s*(?:de\s*)?([0-9]+(?:\s*[0-9]{3})*|[0-9]+k)\s*(?:€|\$|£|chf|euros|euros?|dollars?)/i
+    );
+    if (budgetMatches && budgetMatches[1]) {
+      result.budget = parseAmountString(budgetMatches[1]);
+    }
   }
 
   // 2. Income patterns: "je gagne 2 400 €/mois", "salaire de 3000 €", "revenu 2500", "gano 2400", "earn 3000"
@@ -271,6 +302,10 @@ export function extractNumbersFromText(text: string): {
         break;
       }
     }
+  }
+
+  if (result.budget === undefined && result.monthlyIncome !== undefined && result.monthlyExpenses !== undefined) {
+    result.budget = 0;
   }
 
   return result;
