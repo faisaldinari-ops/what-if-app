@@ -75,3 +75,12 @@ export interface UserContext {
   unknownFields?: string[];
   lastUpdated?: string;
 }
+
+export interface ResearchFact {
+  label: string;
+  value: string;
+  source?: string;
+  confidence?: 'high' | 'medium' | 'low';
+  url?: string;
+  date?: string;
+}

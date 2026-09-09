@@ -22,6 +22,10 @@ import { ScenariosSection } from './features/scenarios/ScenariosSection';
 import { DetailedAnalysisDrawer } from './features/results/DetailedAnalysisDrawer';
 import { ShareReportModal } from './features/results/ShareReportModal';
 import { SavedProjectsDrawer } from './features/projects/SavedProjectsDrawer';
+import { CopilotTrustStrip } from './features/results/CopilotTrustStrip';
+import { OpportunityRadar } from './features/results/OpportunityRadar';
+import { CriticAuditCard } from './features/results/CriticAuditCard';
+import { TelemetryModal } from './features/results/TelemetryModal';
 
 import { Share2, ArrowLeft, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -66,6 +70,7 @@ export const App: React.FC = () => {
   // Modals & Drawers
   const [isShareModalOpen, setIsShareModalOpen] = useState(false);
   const [isSavedDrawerOpen, setIsSavedDrawerOpen] = useState(false);
+  const [isTelemetryOpen, setIsTelemetryOpen] = useState(false);
 
   // 3. Saved projects list in localStorage
   const [savedProjects, setSavedProjects] = useState<DecisionAnalysis[]>(() => {
@@ -249,6 +254,7 @@ export const App: React.FC = () => {
         onOpenSaved={() => setIsSavedDrawerOpen(true)}
         onNewProject={handleNewProject}
         hasActiveProject={viewState !== 'input'}
+        onOpenTelemetry={() => setIsTelemetryOpen(true)}
       />
 
       {/* Error Notice */}
@@ -329,6 +335,12 @@ export const App: React.FC = () => {
               lang={lang}
             />
 
+            {/* 1.1 Data Grounding & Provenance (Transparency Strip) */}
+            <CopilotTrustStrip
+              facts={activeCoPilot?.researchData?.facts}
+              lang={lang}
+            />
+
             {/* 2. Key Metrics Grid (Max 6 figures - Section 17) */}
             <KeyMetricsGrid
               budgetAvailable={activeAnalysis.metrics.budgetAvailable}
@@ -338,6 +350,24 @@ export const App: React.FC = () => {
               realisticMonths={activeAnalysis.metrics.realisticMonths}
               lang={lang}
               currency={currency}
+            />
+
+            {/* 2.1 Opportunity Radar & Public Aids / Subsidies */}
+            <OpportunityRadar
+              prompt={activeAnalysis.userInput.prompt}
+              domain={activeCoPilot?.domainAnalysis?.domain || activeAnalysis.userInput.category}
+              budget={activeAnalysis.metrics.budgetAvailable}
+              targetCost={activeAnalysis.metrics.budgetNeeded}
+              lang={lang}
+              currency={currency}
+            />
+
+            {/* 2.2 Critic Agent Sanity & Constraint Audit */}
+            <CriticAuditCard
+              input={activeAnalysis.userInput}
+              analysis={activeAnalysis}
+              coPilot={activeCoPilot || undefined}
+              lang={lang}
             />
 
             {/* 3. Main Problem (Single priority - Section 17) */}
@@ -449,6 +479,13 @@ export const App: React.FC = () => {
         onDeleteProject={handleDeleteSavedProject}
         lang={lang}
         currency={currency}
+      />
+
+      {/* Telemetry & Cost Observability Modal */}
+      <TelemetryModal
+        isOpen={isTelemetryOpen}
+        onClose={() => setIsTelemetryOpen(false)}
+        lang={lang}
       />
     </div>
   );

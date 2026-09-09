@@ -1,5 +1,7 @@
 // src/types/decision.ts
 
+import { FeasibilityState, GroundedFact } from './provenance';
+
 export type ProjectCategory =
   | 'entrepreneurship'
   | 'money'
@@ -11,6 +13,7 @@ export type ProjectCategory =
   | 'other';
 
 export type FeasibilityVerdict = 'feasible' | 'conditional' | 'too_risky';
+export type { FeasibilityState };
 
 export interface UserExtractedData {
   prompt: string;
@@ -81,6 +84,8 @@ export interface DecisionAnalysis {
   userInput: UserExtractedData;
   score: number; // 0-100
   verdict: FeasibilityVerdict;
+  feasibilityState: FeasibilityState;
+  groundedFacts?: GroundedFact[];
   verdictTitle: string;
   verdictSummary: string; // Max 3 human sentences explaining WHY
   metrics: {

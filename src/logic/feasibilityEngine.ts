@@ -3,6 +3,7 @@ import {
   UserExtractedData,
   DecisionAnalysis,
   FeasibilityVerdict,
+  FeasibilityState,
   ActionPlanStep,
   ProjectVariant,
   ScenarioResult
@@ -125,6 +126,14 @@ export function calculateFeasibility(
 
   // Bound score mathematically between 10 and 96 (leaving room for real world uncertainty)
   const score = Math.max(10, Math.min(96, Math.round(rawScore)));
+
+  // Three clear Feasibility States
+  const feasibilityState: FeasibilityState =
+    score >= 75
+      ? 'POSSIBLE_NOW'
+      : (score >= 40 || budgetAvailable === 0)
+      ? 'POSSIBLE_WITH_PLAN'
+      : 'NOT_REALISTIC_YET';
 
   // 4. Verdicts: strictly 3 levels
   let verdict: FeasibilityVerdict = 'conditional';
@@ -538,6 +547,7 @@ export function calculateFeasibility(
     userInput,
     score,
     verdict,
+    feasibilityState,
     verdictTitle,
     verdictSummary,
     metrics: {

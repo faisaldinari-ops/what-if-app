@@ -5,6 +5,25 @@ import { SupportedLang } from '../../i18n';
 export const BENCHMARK_ARCHETYPES: BenchmarkArchetype[] = [
   {
     category: 'entrepreneurship',
+    keywords: ['électricien', 'electricien', 'artisan', 'plombier', 'chauffagiste', 'menuisier', 'btp'],
+    defaultTitle: 'Artisan / Entreprise d’Électricité',
+    estimatedStartupCost: 5500, // Outillage de mesure, EPI, décennale, stage/formalités, communication
+    estimatedMonthlyCost: 450, // Assurance décennale, carburant, expert-comptable
+    estimatedRevenue: 3600,
+    rampUpMonths: 2,
+    minimumSafetyBuffer: 2500,
+    typicalRisks: [
+      'Nécessité impérative d’une qualification reconnue (CAP/BEP ou 3 ans d’expérience - Loi Raffarin)',
+      'Souscription obligatoire de l’assurance responsabilité civile décennale',
+      'Délais d’encaissement des premiers chantiers clients'
+    ],
+    reducedVariantDescription: 'Démarrage en sous-traitance ou interventions dépannages avec véhicule personnel avant d’acheter un utilitaire floqué.',
+    reducedCostRatio: 0.45,
+    minimalVariantDescription: 'Activité de petit bricolage / dépannage d’urgence avec caisse d’outils de base et statuts micro-entreprise.',
+    minimalCostRatio: 0.20
+  },
+  {
+    category: 'entrepreneurship',
     keywords: ['food truck', 'foodtruck', 'camion pizza', 'snack', 'restauration mobile', 'street food'],
     defaultTitle: 'Food Truck / Restauration Mobile',
     estimatedStartupCost: 18000,
@@ -234,11 +253,23 @@ export function extractNumbersFromText(text: string): {
     result.monthlyExpenses = parseAmountString(expenseMatches[1]);
   }
 
-  // 4. Standalone currency amounts if not matched above
+  // 4. Target Cost / Asset Price patterns: "acheter une voiture à 15 000 €", "voiture à 15000", "coût de 10000 €"
+  const costMatches = cleanText.match(
+    /(?:acheter|achat|acquéreur|voiture à|auto à|prix de|coût de|d’un montant de|d'une valeur de|valeur de)\s*([0-9]+(?:\s*[0-9]{3})*|[0-9]+k)\s*(?:€|\$|£|chf|euros?|dollars?)/i
+  );
+  if (costMatches && costMatches[1]) {
+    result.cost = parseAmountString(costMatches[1]);
+  }
+
+  // 5. Standalone currency amounts if not matched above and not already used
   if (result.budget === undefined) {
-    const genericAmount = cleanText.match(/([0-9]+(?:\s*[0-9]{3})*|[0-9]+k)\s*(?:€|\$|£|chf|euros)/i);
-    if (genericAmount && genericAmount[1]) {
-      result.budget = parseAmountString(genericAmount[1]);
+    const allAmounts = [...cleanText.matchAll(/([0-9]+(?:\s*[0-9]{3})*|[0-9]+k)\s*(?:€|\$|£|chf|euros)/gi)];
+    for (const match of allAmounts) {
+      const parsed = parseAmountString(match[1]);
+      if (parsed !== result.monthlyIncome && parsed !== result.monthlyExpenses && parsed !== result.cost) {
+        result.budget = parsed;
+        break;
+      }
     }
   }
 
@@ -331,7 +362,7 @@ export function parseProjectWithRules(
     budget: budget !== undefined ? budget : undefined,
     monthlyIncome: monthlyIncome !== undefined ? monthlyIncome : undefined,
     monthlyExpenses: monthlyExpenses !== undefined ? monthlyExpenses : undefined,
-    projectStartupCost: existingData?.projectStartupCost || archetype.estimatedStartupCost,
+    projectStartupCost: existingData?.projectStartupCost || numbers.cost || archetype.estimatedStartupCost,
     projectMonthlyRunningCost: existingData?.projectMonthlyRunningCost || archetype.estimatedMonthlyCost,
     projectExpectedRevenue: existingData?.projectExpectedRevenue || archetype.estimatedRevenue,
     monthsBeforeRevenue: existingData?.monthsBeforeRevenue || archetype.rampUpMonths,

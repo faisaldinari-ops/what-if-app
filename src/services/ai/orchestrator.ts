@@ -371,6 +371,7 @@ export function orchestrateDecisionCoPilot(
     },
     score,
     verdict: score >= 75 ? 'feasible' : score >= 50 ? 'conditional' : 'too_risky',
+    feasibilityState: score >= 75 ? 'POSSIBLE_NOW' : (score >= 40 || currentBudget === 0) ? 'POSSIBLE_WITH_PLAN' : 'NOT_REALISTIC_YET',
     verdictTitle: headlineVerdict,
     verdictSummary: whySummary,
     metrics: {

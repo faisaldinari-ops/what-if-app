@@ -1,7 +1,7 @@
 // src/components/ui/TopBar.tsx
 import React from 'react';
 import { SupportedLang, SupportedCurrency } from '../../i18n';
-import { FolderKanban, PlusCircle, Sparkles, Globe } from 'lucide-react';
+import { FolderKanban, PlusCircle, Sparkles, Globe, Activity } from 'lucide-react';
 
 interface TopBarProps {
   lang: SupportedLang;
@@ -12,6 +12,7 @@ interface TopBarProps {
   onOpenSaved: () => void;
   onNewProject?: () => void;
   hasActiveProject?: boolean;
+  onOpenTelemetry?: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -22,7 +23,8 @@ export const TopBar: React.FC<TopBarProps> = ({
   savedCount,
   onOpenSaved,
   onNewProject,
-  hasActiveProject
+  hasActiveProject,
+  onOpenTelemetry
 }) => {
   return (
     <header className="sticky top-0 z-40 w-full border-b border-slate-800/80 bg-slate-950/85 backdrop-blur-md">
@@ -88,6 +90,20 @@ export const TopBar: React.FC<TopBarProps> = ({
               ▼
             </span>
           </div>
+
+          {/* Telemetry & Zero-Cost Observability */}
+          {onOpenTelemetry && (
+            <button
+              onClick={onOpenTelemetry}
+              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 border border-emerald-500/30 text-emerald-300 text-xs font-semibold transition-colors focus:outline-none cursor-pointer"
+              title={lang === 'fr' ? 'Gouvernance & Coûts IA' : 'Cost & Telemetry'}
+            >
+              <Activity className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden lg:inline text-[11px]">
+                {lang === 'fr' ? 'Coût 0 €' : 'Zero Cost'}
+              </span>
+            </button>
+          )}
 
           {/* Saved Projects Button */}
           <button
