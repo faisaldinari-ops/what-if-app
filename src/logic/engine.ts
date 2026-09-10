@@ -168,9 +168,9 @@ export interface EffectiveInputs {
 }
 
 export const getCategoryEffectiveInputs = (data: Partial<SimData>): EffectiveInputs => {
-  const savings = sanitizeNumber(data.savings, 15000, 0);
-  let income = sanitizeNumber(data.income, 3200, 0);
-  let expenses = sanitizeNumber(data.expenses, 2200, 0);
+  const savings = sanitizeNumber(data.savings, 0, 0);
+  let income = sanitizeNumber(data.income, 0, 0);
+  let expenses = sanitizeNumber(data.expenses, 0, 0);
   let oneOff = sanitizeNumber(data.oneOff, 0, 0);
   const growth = sanitizeNumber(data.growth, 5, -99, 500);
   const customGrowthMod = sanitizeNumber(data.customGrowthMod, 1.0, 0, 10);
@@ -219,7 +219,7 @@ export const getCategoryEffectiveInputs = (data: Partial<SimData>): EffectiveInp
     case 'moving':
       if (data.movingCost !== undefined) oneOff = sanitizeNumber(data.movingCost, oneOff, 0);
       if (data.newRent !== undefined && Number(data.newRent) > 0) {
-        const oldRent = sanitizeNumber(data.currentRent, 800, 0);
+        const oldRent = sanitizeNumber(data.currentRent, 0, 0);
         const rentDiff = sanitizeNumber(data.newRent, 0, 0) - oldRent;
         expenses = Math.max(500, expenses + rentDiff);
       }
@@ -234,8 +234,8 @@ export const getCategoryEffectiveInputs = (data: Partial<SimData>): EffectiveInp
     case 'housing':
       if (data.propertyCost !== undefined) oneOff = sanitizeNumber(data.propertyCost, oneOff, 0);
       if (data.mortgagePayment !== undefined && Number(data.mortgagePayment) > 0) {
-        const oldRent = sanitizeNumber(data.currentRent, 900, 0);
-        const addCosts = sanitizeNumber(data.recurringHousingCosts, 200, 0);
+        const oldRent = sanitizeNumber(data.currentRent, 0, 0);
+        const addCosts = sanitizeNumber(data.recurringHousingCosts, 0, 0);
         expenses = Math.max(500, expenses - oldRent + sanitizeNumber(data.mortgagePayment, 0, 0) + addCosts);
       }
       break;
@@ -977,11 +977,11 @@ export const createDefaultSim = (category = 'business', name = 'Scenario'): SimD
     name,
     category,
     description: '',
-    savings: benchmark.savings || 15000,
-    income: benchmark.income || 3200,
-    expenses: benchmark.expenses || 2000,
+    savings: benchmark.savings || 0,
+    income: benchmark.income || 0,
+    expenses: benchmark.expenses || 0,
     growth: benchmark.growth || 5,
-    oneOff: benchmark.oneOff || 2000,
+    oneOff: benchmark.oneOff || 0,
     customGrowthMod: 1.0,
     customExpenseMod: 1.0,
     transitionMonths: benchmark.transitionMonths,

@@ -48,7 +48,7 @@ export const OpportunityRadar: React.FC<OpportunityRadarProps> = ({
   prompt,
   domain,
   budget = 0,
-  targetCost = 3000,
+  targetCost = 0,
   lang,
   currency = 'EUR',
   context

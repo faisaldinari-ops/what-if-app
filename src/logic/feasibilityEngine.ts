@@ -25,8 +25,8 @@ export function calculateFeasibility(
 
   // 1. Resolve effective financial values with fallbacks to realistic benchmarks
   const budgetAvailable = Math.max(0, userInput.budget !== undefined ? userInput.budget : 0);
-  const baselineIncome = Math.max(0, userInput.monthlyIncome !== undefined ? userInput.monthlyIncome : 2200);
-  const baselineExpenses = Math.max(200, userInput.monthlyExpenses !== undefined ? userInput.monthlyExpenses : 1500);
+  const baselineIncome = Math.max(0, userInput.monthlyIncome !== undefined ? userInput.monthlyIncome : 0);
+  const baselineExpenses = Math.max(200, userInput.monthlyExpenses !== undefined ? userInput.monthlyExpenses : 0);
 
   const startupCost = Math.max(
     0,

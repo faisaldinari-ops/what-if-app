@@ -158,7 +158,7 @@ export function detectOpportunities(
   prompt: string,
   domain: ProjectDomain | string,
   budget: number = 0,
-  targetCost: number = 3000,
+  targetCost: number = 0,
   userProfile?: Partial<UserContext> & UserOpportunityProfile
 ): OpportunityEngineResult {
   const pLower = (prompt || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
@@ -698,7 +698,7 @@ export async function generateOpportunityMapAsync(
     prompt,
     domain || 'general',
     userProfile?.budget || 0,
-    (userProfile as any)?.projectStartupCost || 3000,
+    (userProfile as any)?.projectStartupCost || 0,
     userProfile as any
   );
   return enrichOpportunitiesWithLiveSearch(syncResult, prompt, domain);

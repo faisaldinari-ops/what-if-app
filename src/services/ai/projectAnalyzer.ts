@@ -1,10 +1,8 @@
 // src/services/ai/projectAnalyzer.ts
 import { UserExtractedData, MissingQuestion, DecisionAnalysis } from '../../types/decision';
 import { CoPilotResponse } from '../../types/planning';
-import { parseProjectWithRules } from './ruleBasedParser';
-import { calculateFeasibility } from '../../logic/feasibilityEngine';
-import { orchestrateDecisionCoPilot } from './orchestrator';
 import { SupportedLang, SupportedCurrency } from '../../i18n';
+import { DecisionController } from '../../core/controller/DecisionController';
 
 export interface AnalysisResponse {
   data: UserExtractedData;
@@ -15,108 +13,68 @@ export interface AnalysisResponse {
   aiEnhanced?: boolean;
 }
 
-/**
- * Centralized AI Service:
- * Uses orchestrateDecisionCoPilot which integrates Intent Classification,
- * Domain Classification, Deterministic Math engines, Research benchmarks,
- * and smart alternative generation.
- * Also queries server-side Gemini API when available to enrich context.
- */
 export async function analyzeProjectInput(
   prompt: string,
   existingData?: Partial<UserExtractedData>,
   lang: SupportedLang = 'fr',
   currency: SupportedCurrency = 'EUR'
 ): Promise<AnalysisResponse> {
-  // Always run the orchestrator for full domain and factual grounding
-  const orch = orchestrateDecisionCoPilot(
-    prompt,
-    {
-      goal: prompt,
-      budget: existingData?.budget,
-      monthlyIncome: existingData?.monthlyIncome,
-      monthlyExpenses: existingData?.monthlyExpenses,
-      durationDays: existingData?.timelineMonths,
-      knownFacts: existingData?.customAnswers
-    },
-    lang,
-    currency
-  );
+  // Use the new Decision Controller
+  const previousState = existingData?.customAnswers?.__projectState || null;
+  // Forward frontend root state to DecisionController via existingData/customAnswers
+  const frontendAnswers = {
+    ...(existingData?.customAnswers || {}),
+    _budget: existingData?.budget,
+    _monthlyIncome: existingData?.monthlyIncome,
+    _monthlyExpenses: existingData?.monthlyExpenses,
+    _durationMonths: existingData?.timelineMonths,
+  };
+  
+  const response = await DecisionController.processTurn(prompt, previousState, lang, currency, frontendAnswers);
 
-  let mergedData: UserExtractedData = {
-    prompt,
-    projectTitle: orch.context.goal || prompt.slice(0, 40),
-    category: orch.domain === 'business' || orch.domain === 'digital_project' ? 'entrepreneurship' : orch.domain === 'travel' ? 'personal' : orch.domain === 'relocation' ? 'relocation' : 'other',
-    budget: orch.context.budget,
-    monthlyIncome: orch.context.monthlyIncome,
-    monthlyExpenses: orch.context.monthlyExpenses,
-    projectStartupCost: existingData?.projectStartupCost || 3000,
-    projectMonthlyRunningCost: existingData?.projectMonthlyRunningCost || 150,
-    projectExpectedRevenue: existingData?.projectExpectedRevenue || 0,
-    monthsBeforeRevenue: existingData?.monthsBeforeRevenue || 1,
-    timelineMonths: existingData?.timelineMonths || 12,
-    customAnswers: existingData?.customAnswers || {}
+  const mapCategory = (domain?: string): any => {
+    if (domain === 'business' || domain === 'digital_project') return 'entrepreneurship';
+    if (domain === 'travel' || domain === 'life_change') return 'personal';
+    if (domain === 'relocation') return 'relocation';
+    if (domain === 'personal_finance' || domain === 'purchase') return 'money';
+    return domain || 'other';
   };
 
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 4000); // 4s timeout
+  const nextCustomAnswers = {
+    ...(existingData?.customAnswers || {}),
+    __projectState: response.state // Serialize state for multi-turn!
+  };
 
-    const res = await fetch('/api/analyze-project', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
+  if (response.type === 'NEEDS_INFORMATION') {
+    return {
+      data: {
         prompt,
-        existingData: mergedData,
-        lang,
-        currency
-      }),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-
-    if (res.ok) {
-      const json = await res.json();
-      if (json && json.data) {
-        mergedData = { ...mergedData, ...json.data };
-      }
-    }
-  } catch (err) {
-    // Graceful offline fallback
-    console.warn('AI proxy optional check passed, using full deterministic orchestrator');
-  }
-
-  // If orchestrator produced a ready analysis, return it!
-  if (orch.isReady && orch.coPilotResponse && orch.decisionAnalysis) {
-    return {
-      data: mergedData,
-      missingQuestions: [],
-      isReadyForAnalysis: true,
-      analysis: orch.decisionAnalysis,
-      coPilot: orch.coPilotResponse,
-      aiEnhanced: true
-    };
-  }
-
-  if (orch.missingQuestions.length > 0) {
-    return {
-      data: mergedData,
-      missingQuestions: orch.missingQuestions,
+        projectTitle: response.state.rawGoal,
+        category: mapCategory(response.state.activeDomains[0]),
+        budget: response.state.availableBudget.value !== 'UNKNOWN' ? response.state.availableBudget.value as number : undefined,
+        monthlyIncome: response.state.monthlyIncome.value !== 'UNKNOWN' ? response.state.monthlyIncome.value as number : undefined,
+        monthlyExpenses: response.state.monthlyExpenses.value !== 'UNKNOWN' ? response.state.monthlyExpenses.value as number : undefined,
+        customAnswers: nextCustomAnswers
+      },
+      missingQuestions: [response.question],
       isReadyForAnalysis: false,
-      coPilot: undefined,
-      aiEnhanced: true
     };
   }
 
-  // Final fallback calculation
-  const fallbackAnalysis = calculateFeasibility(mergedData, lang, currency);
+  // It's a recommendation response
   return {
-    data: mergedData,
+    data: {
+      prompt,
+      projectTitle: response.state.rawGoal,
+      category: mapCategory(response.state.activeDomains[0]),
+      budget: response.state.availableBudget.value !== 'UNKNOWN' ? response.state.availableBudget.value as number : undefined,
+      monthlyIncome: response.state.monthlyIncome.value !== 'UNKNOWN' ? response.state.monthlyIncome.value as number : undefined,
+      monthlyExpenses: response.state.monthlyExpenses.value !== 'UNKNOWN' ? response.state.monthlyExpenses.value as number : undefined,
+      customAnswers: nextCustomAnswers
+    },
     missingQuestions: [],
     isReadyForAnalysis: true,
-    analysis: fallbackAnalysis,
-    coPilot: orch.coPilotResponse,
-    aiEnhanced: false
+    analysis: response.analysis,
+    coPilot: response.coPilot,
   };
 }

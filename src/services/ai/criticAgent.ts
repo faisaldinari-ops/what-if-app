@@ -31,7 +31,7 @@ export function auditDecisionAnalysisDeterministically(
   const issues: CriticAuditIssue[] = [];
 
   const budget = input.budget ?? 0;
-  const targetCost = input.projectStartupCost ?? 3000;
+  const targetCost = input.projectStartupCost ?? 0;
   const income = input.monthlyIncome ?? 0;
   const expenses = input.monthlyExpenses ?? 0;
   const margin = income - expenses;

@@ -45,7 +45,7 @@ export function calculateDestinationCompatibility(
   constraints: string[];
 } {
   const profile = LIVING_COST_DATABASE[countryKey] || getCountryLivingCosts(countryKey);
-  const userBudget = userProfile.budget !== undefined ? userProfile.budget : 3000;
+  const userBudget = userProfile.budget !== undefined ? userProfile.budget : 0;
   const userLanguages = (userProfile.languages || []).map((l) => l.language.toLowerCase());
   const userProfession = userProfile.profession || '';
   const userPrefs = userProfile.preferences || {};
