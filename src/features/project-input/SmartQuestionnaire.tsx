@@ -78,19 +78,29 @@ export const SmartQuestionnaire: React.FC<SmartQuestionnaireProps> = ({
           </div>
 
           <h2 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-            {lang === 'fr'
-              ? `Très bien. Pour calculer précisément ton projet, il me manque ${questions.length} information${questions.length > 1 ? 's' : ''} :`
-              : lang === 'es'
-              ? `Muy bien. Para calcular la viabilidad exacta, faltan ${questions.length} dato${questions.length > 1 ? 's' : ''}:`
-              : `Great. To calculate feasibility accurately, we just need ${questions.length} key piece${questions.length > 1 ? 's' : ''} of information:`}
+            {questions.length === 1 && questions[0].id === 'operatingModel'
+              ? (lang === 'fr'
+                  ? 'Précisons ton mode d’exercice pour estimer le coût exact :'
+                  : lang === 'es'
+                  ? 'Concretemos tu forma de empezar para estimar el coste exacto:'
+                  : 'Let’s clarify your operating model to estimate the exact startup cost:')
+              : (lang === 'fr'
+                  ? `Très bien. Pour calculer précisément ton projet, il me manque ${questions.length} information${questions.length > 1 ? 's' : ''} :`
+                  : lang === 'es'
+                  ? `Muy bien. Para calcular la viabilidad exacta, faltan ${questions.length} dato${questions.length > 1 ? 's' : ''}:`
+                  : `Great. To calculate feasibility accurately, we just need ${questions.length} key piece${questions.length > 1 ? 's' : ''} of information:`)}
           </h2>
 
           <p className="text-xs sm:text-sm text-slate-400">
-            {lang === 'fr'
-              ? 'Nous réutilisons tout ce que tu as déjà indiqué sans jamais te le redemander.'
-              : lang === 'es'
-              ? 'Reutilizamos lo que ya has indicado sin volver a preguntarlo.'
-              : 'We already saved everything you mentioned and will never ask twice.'}
+            {questions.length === 1 && questions[0].id === 'operatingModel'
+              ? (lang === 'fr'
+                  ? 'Le matériel reste le même, mais un local commercial implique un bail et des charges fixes 10x plus élevées.'
+                  : 'Costs differ substantially between home-based, mobile, or commercial salon setups.')
+              : (lang === 'fr'
+                  ? 'Nous réutilisons tout ce que tu as déjà indiqué sans jamais te le redemander.'
+                  : lang === 'es'
+                  ? 'Reutilizamos lo que ya has indicado sin volver a preguntarlo.'
+                  : 'We already saved everything you mentioned and will never ask twice.')}
           </p>
         </div>
 
@@ -180,11 +190,13 @@ export const SmartQuestionnaire: React.FC<SmartQuestionnaireProps> = ({
               ) : (
                 <>
                   <span>
-                    {lang === 'fr'
-                      ? 'Lancer l’analyse de faisabilité'
-                      : lang === 'es'
-                      ? 'Calcular viabilidad'
-                      : 'Run Feasibility Analysis'}
+                    {questions.length === 1 && questions[0].id === 'operatingModel'
+                      ? (lang === 'fr' ? 'Estimer le coût' : lang === 'es' ? 'Estimar coste' : 'Estimate Cost')
+                      : (lang === 'fr'
+                          ? 'Lancer l’analyse de faisabilité'
+                          : lang === 'es'
+                          ? 'Calcular viabilidad'
+                          : 'Run Feasibility Analysis')}
                   </span>
                   <ArrowRight className="w-4 h-4" />
                 </>

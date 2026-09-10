@@ -125,15 +125,15 @@ export const OpportunityRadar: React.FC<OpportunityRadarProps> = ({
 
   const getCategoryLabel = (category: OpportunityCategory) => {
     switch (category) {
-      case 'aide_publique': return 'Aide Publique / Subvention';
-      case 'exoneration_fiscale': return 'Exonération / Fiscalité';
-      case 'pret_aide': return 'Prêt d’Honneur / 0%';
-      case 'reduction_materiel': return 'Matériel & Leasing';
-      case 'dispositif_jeune_emploi': return 'Dispositif Emploi / Jeunes';
-      case 'accompagnement_gratuit': return 'Conseil Public Gratuit';
-      case 'formation_financee': return 'Formation Financée';
-      case 'aide_logement_mobilite': return 'Logement & Mobilité';
-      case 'alternative_gratuite': return 'Bon Plan / Gratuit';
+      case 'aide_publique': return 'Subvention Non Remboursable';
+      case 'exoneration_fiscale': return 'Exonération de Cotisations Sociales';
+      case 'pret_aide': return 'Prêt à Taux 0% (remboursable)';
+      case 'reduction_materiel': return 'Optimisation Matériel / Occasion';
+      case 'dispositif_jeune_emploi': return 'Dispositif Insertion / Jeunes';
+      case 'accompagnement_gratuit': return 'Accompagnement Public Gratuit';
+      case 'formation_financee': return 'Droit Formation (non convertible en cash)';
+      case 'aide_logement_mobilite': return 'Aide Mobilité / Logement';
+      case 'alternative_gratuite': return 'Alternative Libre / Gratuite';
       default: return 'Dispositif Aidé';
     }
   };
@@ -154,8 +154,10 @@ export const OpportunityRadar: React.FC<OpportunityRadarProps> = ({
               <h3 className="text-base sm:text-lg font-extrabold text-white tracking-tight">
                 {lang === 'fr' ? 'Moteur d’Aides, Financements & Opportunités' : 'Opportunities, Grants & Benefits Engine'}
               </h3>
-              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-gradient-to-r from-emerald-500/20 to-indigo-500/20 text-emerald-300 border border-emerald-500/30">
-                Score Opportunité : {result.opportunityScore || 85}/100
+              <span className="px-2.5 py-0.5 rounded-full text-[11px] font-extrabold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+                {result.topOpportunities?.some(o => o.eligibilityStatus === 'PROBABLEMENT_ELIGIBLE')
+                  ? (lang === 'fr' ? 'Pertinence élevée selon profil' : 'High Relevance')
+                  : (lang === 'fr' ? 'À qualifier selon statut' : 'To qualify by profile')}
               </span>
             </div>
             <p className="text-xs sm:text-sm text-slate-300 mt-1 leading-relaxed">

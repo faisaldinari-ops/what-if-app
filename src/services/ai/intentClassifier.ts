@@ -94,6 +94,8 @@ export function classifyUserIntent(prompt: string): UserIntent {
   if (
     p.includes('combien ça coûte') ||
     p.includes('combien ca coute') ||
+    p.includes('il me faut combien') ||
+    p.includes('il faut combien') ||
     p.includes('combien cela va me coûter') ||
     p.includes('ne sais pas combien ça coûte') ||
     p.includes('how much will it cost') ||

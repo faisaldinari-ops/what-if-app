@@ -258,8 +258,8 @@ export function detectOpportunities(
   // Ensure high quality sorting
   matchedOpportunities.sort((a, b) => b.opportunityScore - a.opportunityScore);
 
-  // Top 3-4 opportunities
-  const topOpportunities = matchedOpportunities.slice(0, 4);
+  // Top 2-3 opportunities max for primary display
+  const topOpportunities = matchedOpportunities.slice(0, 3);
 
   // ============================================================================
   // CAUTION ALERT ("NE PAIE PAS AVANT D'AVOIR VÉRIFIÉ" - SECTION 9)
@@ -325,8 +325,8 @@ export function detectOpportunities(
   let combinationStrategy: CombinationStrategy | undefined;
   if (isBusiness) {
     combinationStrategy = {
-      title: 'Combinaison Gagnante Création Sécurisée (Montage sans risque)',
-      description: 'Ce plan combine 4 leviers légalement cumulables pour minimiser votre apport personnel et éviter le crédit bancaire lourd.',
+      title: 'Combinaison Création Sécurisée (Montage sans endettement lourd)',
+      description: 'Ce plan combine des leviers conditionnels pour limiter votre sortie de trésorerie personnelle.',
       totalMobilized: budget + (confirmedGrants > 0 ? confirmedGrants : 6000) + (accessibleFinancing > 0 ? accessibleFinancing : 8000) + 4000,
       combinedSteps: [
         {
@@ -338,27 +338,27 @@ export function detectOpportunities(
         {
           stepNumber: 2,
           title: 'ACRE + ARCE France Travail (Capitalisation des droits chômage)',
-          impact: 'Débloque 60 % de vos droits chômage sans dette et divise vos cotisations par 2.',
+          impact: 'Option capital chômage (versement en 2 fois) et réduction des cotisations sociales.',
           type: 'grant'
         },
         {
           stepNumber: 3,
-          title: 'Prêt d’Honneur Initiative France (0 % sans caution)',
-          impact: 'Apporte 5 000 € à 15 000 € de quasi-fonds propres remboursables sur 36 à 60 mois.',
+          title: 'Prêt d’Honneur Initiative France (Taux 0 % - remboursable)',
+          impact: 'Prêt sans intérêts ni caution personnelle pour conforter le fonds de roulement.',
           type: 'loan'
         },
         {
           stepNumber: 4,
-          title: 'Véhicule & Matériel en LLD / Occasion Reconditionnée',
-          impact: 'Économise 4 000 € à 8 000 € de sorties d’argent comptant au démarrage.',
+          title: 'Véhicule & Matériel en Occasion / Location avec Option d’Achat',
+          impact: 'Préserve la trésorerie disponible en évitant d’immobiliser du capital comptant.',
           type: 'saving'
         }
       ],
       compatibilityRules: [
-        'ACRE et ARCE sont 100 % cumulables lors de la création d’entreprise.',
-        'Attention : L’ARCE (versement en capital) n’est PAS cumulable avec le maintien mensuel de l’allocation ARE.',
-        'Le Prêt d’Honneur Initiative France est cumulable avec le microcrédit ADIE et tout prêt bancaire.',
-        'Les exonérations ZRR / FRR sont cumulables avec l’ensemble des dispositifs d’amorçage.'
+        'ACRE (exonération sociale) et ARCE (capital chômage) : cumul possible sous réserve d’acceptation des droits France Travail.',
+        'Attention : L’ARCE (versement en capital) est incompatible avec le maintien mensuel de l’allocation ARE.',
+        'Le Prêt d’Honneur Initiative France est un emprunt à rembourser (taux 0%), pas une subvention perdue.',
+        'Les aides régionales et microcrédits ADIE requièrent une instruction de dossier préalable avant engagement de dépenses.'
       ]
     };
   } else if (isVehicle) {

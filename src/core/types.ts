@@ -43,11 +43,55 @@ export type UserIntent =
   | 'GENERAL_ADVICE'
   | 'UNKNOWN';
 
+export type RequestIntent =
+  | 'ESTIMATE_COST'
+  | 'CHECK_AFFORDABILITY'
+  | 'COMPARE_OPTIONS'
+  | 'FIND_SOLUTION'
+  | 'BUILD_PLAN'
+  | 'RESEARCH_REQUIREMENTS'
+  | 'CHECK_ELIGIBILITY'
+  | 'ESTIMATE_TIMELINE'
+  | 'OPTIMIZE_BUDGET'
+  | 'EXPLAIN'
+  | 'BRAINSTORM'
+  | 'RECOMMEND'
+  | 'VERIFY_FACT'
+  | 'START_PROJECT'
+  | 'UNKNOWN';
+
+export type NextBestAction =
+  | 'ASK'
+  | 'RESEARCH'
+  | 'CALCULATE'
+  | 'VERIFY'
+  | 'COMPARE'
+  | 'EXPLORE'
+  | 'OPTIMIZE'
+  | 'PLAN'
+  | 'ANSWER';
+
+export interface CostItem {
+  id: string;
+  category: string;
+  label: string;
+  min: number;
+  max: number;
+  isMandatory: boolean;
+  source?: string;
+  sourceUrl?: string;
+  notes?: string;
+}
+
+export type OperatingModel = 'home' | 'mobile' | 'salon' | 'online' | 'unknown';
+
 export interface ProjectState {
   // Goals and Intents
   rawGoal: string;
   interpretedGoal: Fact<string>;
   primaryIntent: Fact<UserIntent>;
+  requestIntent: Fact<RequestIntent>;
+  nextBestAction: NextBestAction;
   secondaryIntents: UserIntent[];
   activeDomains: ProjectDomain[];
 
@@ -64,7 +108,14 @@ export interface ProjectState {
   monthlySavingsCapacity: Fact<number>;
 
   profession: Fact<string>;
+  activitySubtype: Fact<string>;
+  operatingModel: Fact<OperatingModel>;
   qualifications: Fact<string[]>;
+
+  // Cost estimates and itemization
+  costEstimateRange?: { min: number; max: number; items: CostItem[] };
+  sources: Array<{ name: string; url?: string; note?: string }>;
+  assumptions: string[];
 
   // Extensible facts (for domain specific facts)
   facts: Record<string, Fact<any>>;
@@ -83,6 +134,8 @@ export const createInitialProjectState = (goal: string): ProjectState => ({
   rawGoal: goal,
   interpretedGoal: createUnknownFact(),
   primaryIntent: createUnknownFact(),
+  requestIntent: createUnknownFact(),
+  nextBestAction: 'ASK',
   secondaryIntents: [],
   activeDomains: [],
 
@@ -98,7 +151,12 @@ export const createInitialProjectState = (goal: string): ProjectState => ({
   monthlySavingsCapacity: createUnknownFact(),
 
   profession: createUnknownFact(),
+  activitySubtype: createUnknownFact(),
+  operatingModel: createUnknownFact(),
   qualifications: createUnknownFact(),
+
+  sources: [],
+  assumptions: [],
 
   facts: {},
 

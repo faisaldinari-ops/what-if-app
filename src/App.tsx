@@ -30,6 +30,8 @@ import { OpportunityRadar } from './features/results/OpportunityRadar';
 import { CriticAuditCard } from './features/results/CriticAuditCard';
 import { TelemetryModal } from './features/results/TelemetryModal';
 
+import { CostEstimateHero } from './features/results/CostEstimateHero';
+import { SimpleGoalTracker } from './features/results/SimpleGoalTracker';
 import { Share2, ArrowLeft, AlertTriangle, ChevronDown, ChevronUp } from 'lucide-react';
 
 const STORAGE_SAVED_PROJECTS = 'whatif_saved_decisions_v3';
@@ -390,170 +392,187 @@ export const App: React.FC = () => {
             {/* ==================================================================== */}
             {/* NIVEAU 1 : RÈGLE DES 5 SECONDES (VERDICT, CHIFFRE CLÉ, ACTION IMMÉDIATE) */}
             {/* ==================================================================== */}
-            {adaptiveSummary && (
-              <AdaptiveVerdictHero
-                summary={adaptiveSummary}
-                projectTitle={activeAnalysis.userInput.projectTitle}
-                lang={lang}
-                currency={currency}
-                onExecutePrimaryAction={handlePrimaryAction}
-                onExecuteSecondaryAction={handleSecondaryAction}
-                onOpenSavingsFinder={() => setIsSavingsFinderOpen(true)}
-                onOpenFullFinancials={() => setShowFullFinancials(true)}
-                onScrollToSection={id => {
-                  const el = document.getElementById(id);
-                  if (el) el.scrollIntoView({ behavior: 'smooth' });
-                }}
-              />
-            )}
-
-            {/* ==================================================================== */}
-            {/* NIVEAU 2 : PLAN CONCRET & SOLUTIONS (ACCESSIBLE, SANS JARGON)         */}
-            {/* ==================================================================== */}
-            <div className="space-y-6 pt-2">
-              {/* Priorité n°1 & Ce que je te recommande */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <MainProblemCard
-                  title={activeCoPilot?.mainObstacle.title || activeAnalysis.mainProblem.title}
-                  description={activeCoPilot?.mainObstacle.description || activeAnalysis.mainProblem.description}
-                  priorityLevel={activeAnalysis.mainProblem.priorityLevel}
-                  lang={lang}
-                />
-                <RecommendationCard
-                  recommendationText={
-                    activeCoPilot?.recommendationShortPlan ||
-                    (lang === 'fr'
-                      ? '1. Conserve un matelas de sécurité. 2. Démarre par la version optimisée ou lean. 3. Active les aides disponibles pour sécuriser ton lancement.'
-                      : '1. Preserve a safety buffer. 2. Start with the leanest viable version. 3. Claim all eligible grants and subsidies.')
-                  }
-                  lang={lang}
-                />
-              </div>
-
-              {/* 2. Key Metrics Grid (Chiffres clés de trésorerie) */}
-              <KeyMetricsGrid
-                budgetAvailable={activeAnalysis.metrics.budgetAvailable}
-                budgetNeeded={activeAnalysis.metrics.budgetNeeded}
-                gap={activeAnalysis.metrics.gap}
-                monthlyMargin={activeAnalysis.metrics.monthlyMargin}
-                realisticMonths={activeAnalysis.metrics.realisticMonths}
+            {activeAnalysis.isCostEstimateOnly ? (
+              <CostEstimateHero
+                analysis={activeAnalysis}
+                coPilot={activeCoPilot || undefined}
                 lang={lang}
                 currency={currency}
               />
-
-              {/* 2.1 Moteur d'aides & Opportunités (Radar des aides) */}
-              <div id="opportunity-radar-section">
-                <OpportunityRadar
-                  prompt={activeAnalysis.userInput.prompt}
-                  domain={activeCoPilot?.domainAnalysis?.domain || activeAnalysis.userInput.category}
-                  budget={activeAnalysis.metrics.budgetAvailable}
-                  targetCost={activeAnalysis.metrics.budgetNeeded}
-                  lang={lang}
-                  currency={currency}
-                />
-              </div>
-
-              {/* 3. Plan d'Action étape par étape */}
-              <div id="action-plan-section">
-                <ActionPlanSection steps={activeAnalysis.actionPlan} lang={lang} />
-              </div>
-
-              {/* 4. Mode "Trouve-moi une solution" (3 Variantes : Originale, Allégée, Minimale) */}
-              <div id="solution-variants-section">
-                <SolutionVariantsSection
-                  variants={activeAnalysis.variants}
-                  lang={lang}
-                  currency={currency}
-                />
-              </div>
-
-              {/* 5. "Construis-moi le chemin" : Jalons & Trajectoire */}
-              {activeCoPilot?.constructedPath && (
-                <MilestonesPathSection
-                  milestones={activeCoPilot.constructedPath}
-                  lang={lang}
-                  currency={currency}
-                />
-              )}
-
-              {/* 6. Intelligence spécifique au domaine (Voyage, Reconversations, Entreprise) */}
-              <DomainSpecificCard
-                coPilotData={activeCoPilot || undefined}
+            ) : activeAnalysis.isSimpleGoal ? (
+              <SimpleGoalTracker
+                analysis={activeAnalysis}
                 lang={lang}
                 currency={currency}
               />
-
-              {/* 7. Smart CTAs */}
-              {activeCoPilot?.smartCTAs && activeCoPilot.smartCTAs.length > 0 && (
-                <SmartCTASection
-                  ctas={activeCoPilot.smartCTAs}
-                  lang={lang}
-                  onExecuteCTA={handleExecuteCTA}
-                />
-              )}
-            </div>
-
-            {/* ==================================================================== */}
-            {/* NIVEAU 3 : ANALYSE COMPLÈTE & CRASH-TESTS (REFERMÉ PAR DÉFAUT)       */}
-            {/* ==================================================================== */}
-            <div id="full-financials-section" className="pt-6 border-t border-slate-800/80">
-              <button
-                type="button"
-                onClick={() => setShowFullFinancials(prev => !prev)}
-                className="w-full py-4 px-6 rounded-2xl bg-slate-900/90 hover:bg-slate-850 border border-slate-800 flex items-center justify-between text-sm sm:text-base font-bold text-slate-200 transition-all cursor-pointer shadow-md"
-              >
-                <span className="flex items-center gap-2">
-                  <span>
-                    {showFullFinancials
-                      ? (lang === 'fr' ? 'Masquer l’analyse financière détaillée' : 'Hide detailed financial analysis')
-                      : (lang === 'fr' ? '🔍 Voir l’analyse financière complète (Scénarios & Crash-tests)' : '🔍 View full financial analysis (Scenarios & Stress-tests)')}
-                  </span>
-                </span>
-                {showFullFinancials ? <ChevronUp className="w-5 h-5 text-indigo-400" /> : <ChevronDown className="w-5 h-5 text-indigo-400" />}
-              </button>
-
-              {showFullFinancials && (
-                <div className="space-y-8 pt-6">
-                  {/* Score classique et jauge de faisabilité */}
-                  <FeasibilityHero
-                    verdict={activeAnalysis.verdict}
-                    verdictTitle={activeCoPilot?.headlineVerdict || activeAnalysis.verdictTitle}
-                    verdictSummary={activeCoPilot?.whySummary || activeAnalysis.verdictSummary}
-                    score={activeAnalysis.score}
+            ) : (
+              <>
+                {adaptiveSummary && (
+                  <AdaptiveVerdictHero
+                    summary={adaptiveSummary}
                     projectTitle={activeAnalysis.userInput.projectTitle}
                     lang={lang}
+                    currency={currency}
+                    onExecutePrimaryAction={handlePrimaryAction}
+                    onExecuteSecondaryAction={handleSecondaryAction}
+                    onOpenSavingsFinder={() => setIsSavingsFinderOpen(true)}
+                    onOpenFullFinancials={() => setShowFullFinancials(true)}
+                    onScrollToSection={id => {
+                      const el = document.getElementById(id);
+                      if (el) el.scrollIntoView({ behavior: 'smooth' });
+                    }}
                   />
+                )}
 
-                  {/* Scenarios: Prudent, Réaliste, Favorable */}
-                  <ScenariosSection
-                    scenarios={activeAnalysis.scenarios}
+                {/* ==================================================================== */}
+                {/* NIVEAU 2 : PLAN CONCRET & SOLUTIONS (ACCESSIBLE, SANS JARGON)         */}
+                {/* ==================================================================== */}
+                <div className="space-y-6 pt-2">
+                  {/* Priorité n°1 & Ce que je te recommande */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <MainProblemCard
+                      title={activeCoPilot?.mainObstacle.title || activeAnalysis.mainProblem.title}
+                      description={activeCoPilot?.mainObstacle.description || activeAnalysis.mainProblem.description}
+                      priorityLevel={activeAnalysis.mainProblem.priorityLevel}
+                      lang={lang}
+                    />
+                    <RecommendationCard
+                      recommendationText={
+                        activeCoPilot?.recommendationShortPlan ||
+                        (lang === 'fr'
+                          ? '1. Conserve un matelas de sécurité. 2. Démarre par la version optimisée ou lean. 3. Active les aides disponibles pour sécuriser ton lancement.'
+                          : '1. Preserve a safety buffer. 2. Start with the leanest viable version. 3. Claim all eligible grants and subsidies.')
+                      }
+                      lang={lang}
+                    />
+                  </div>
+
+                  {/* 2. Key Metrics Grid (Chiffres clés de trésorerie) */}
+                  <KeyMetricsGrid
+                    budgetAvailable={activeAnalysis.metrics.budgetAvailable}
+                    budgetNeeded={activeAnalysis.metrics.budgetNeeded}
+                    gap={activeAnalysis.metrics.gap}
+                    monthlyMargin={activeAnalysis.metrics.monthlyMargin}
+                    realisticMonths={activeAnalysis.metrics.realisticMonths}
                     lang={lang}
                     currency={currency}
                   />
 
-                  {/* Audit de Rigueur de l'Agent Critique */}
-                  <CriticAuditCard
-                    input={activeAnalysis.userInput}
-                    analysis={activeAnalysis}
-                    coPilot={activeCoPilot || undefined}
-                    lang={lang}
-                  />
+                  {/* 2.1 Moteur d'aides & Opportunités (Radar des aides) */}
+                  <div id="opportunity-radar-section">
+                    <OpportunityRadar
+                      prompt={activeAnalysis.userInput.prompt}
+                      domain={activeCoPilot?.domainAnalysis?.domain || activeAnalysis.userInput.category}
+                      budget={activeAnalysis.metrics.budgetAvailable}
+                      targetCost={activeAnalysis.metrics.budgetNeeded}
+                      lang={lang}
+                      currency={currency}
+                    />
+                  </div>
 
-                  {/* Data Grounding & Provenance (Transparency Strip) */}
-                  <CopilotTrustStrip
-                    facts={activeCoPilot?.researchData?.facts}
-                    lang={lang}
-                  />
+                  {/* 3. Plan d'Action étape par étape */}
+                  <div id="action-plan-section">
+                    <ActionPlanSection steps={activeAnalysis.actionPlan} lang={lang} />
+                  </div>
 
-                  {/* Detailed Analysis Drawer (Stress tests, Breaking point, Data Provenance) */}
-                  <DetailedAnalysisDrawer
-                    analysis={activeAnalysis}
+                  {/* 4. Mode "Trouve-moi une solution" (3 Variantes : Originale, Allégée, Minimale) */}
+                  <div id="solution-variants-section">
+                    <SolutionVariantsSection
+                      variants={activeAnalysis.variants}
+                      lang={lang}
+                      currency={currency}
+                    />
+                  </div>
+
+                  {/* 5. "Construis-moi le chemin" : Jalons & Trajectoire */}
+                  {activeCoPilot?.constructedPath && (
+                    <MilestonesPathSection
+                      milestones={activeCoPilot.constructedPath}
+                      lang={lang}
+                      currency={currency}
+                    />
+                  )}
+
+                  {/* 6. Intelligence spécifique au domaine (Voyage, Reconversations, Entreprise) */}
+                  <DomainSpecificCard
+                    coPilotData={activeCoPilot || undefined}
                     lang={lang}
                     currency={currency}
                   />
+
+                  {/* 7. Smart CTAs */}
+                  {activeCoPilot?.smartCTAs && activeCoPilot.smartCTAs.length > 0 && (
+                    <SmartCTASection
+                      ctas={activeCoPilot.smartCTAs}
+                      lang={lang}
+                      onExecuteCTA={handleExecuteCTA}
+                    />
+                  )}
                 </div>
-              )}
-            </div>
+
+                {/* ==================================================================== */}
+                {/* NIVEAU 3 : ANALYSE COMPLÈTE & CRASH-TESTS (REFERMÉ PAR DÉFAUT)       */}
+                {/* ==================================================================== */}
+                <div id="full-financials-section" className="pt-6 border-t border-slate-800/80">
+                  <button
+                    type="button"
+                    onClick={() => setShowFullFinancials(prev => !prev)}
+                    className="w-full py-4 px-6 rounded-2xl bg-slate-900/90 hover:bg-slate-850 border border-slate-800 flex items-center justify-between text-sm sm:text-base font-bold text-slate-200 transition-all cursor-pointer shadow-md"
+                  >
+                    <span className="flex items-center gap-2">
+                      <span>
+                        {showFullFinancials
+                          ? (lang === 'fr' ? 'Masquer l’analyse financière détaillée' : 'Hide detailed financial analysis')
+                          : (lang === 'fr' ? '🔍 Voir l’analyse financière complète (Scénarios & Crash-tests)' : '🔍 View full financial analysis (Scenarios & Stress-tests)')}
+                      </span>
+                    </span>
+                    {showFullFinancials ? <ChevronUp className="w-5 h-5 text-indigo-400" /> : <ChevronDown className="w-5 h-5 text-indigo-400" />}
+                  </button>
+
+                  {showFullFinancials && (
+                    <div className="space-y-8 pt-6">
+                      {/* Score classique et jauge de faisabilité */}
+                      <FeasibilityHero
+                        verdict={activeAnalysis.verdict}
+                        verdictTitle={activeCoPilot?.headlineVerdict || activeAnalysis.verdictTitle}
+                        verdictSummary={activeCoPilot?.whySummary || activeAnalysis.verdictSummary}
+                        score={activeAnalysis.score}
+                        projectTitle={activeAnalysis.userInput.projectTitle}
+                        lang={lang}
+                      />
+
+                      {/* Scenarios: Prudent, Réaliste, Favorable */}
+                      <ScenariosSection
+                        scenarios={activeAnalysis.scenarios}
+                        lang={lang}
+                        currency={currency}
+                      />
+
+                      {/* Audit de Rigueur de l'Agent Critique */}
+                      <CriticAuditCard
+                        input={activeAnalysis.userInput}
+                        analysis={activeAnalysis}
+                        coPilot={activeCoPilot || undefined}
+                        lang={lang}
+                      />
+
+                      {/* Data Grounding & Provenance (Transparency Strip) */}
+                      <CopilotTrustStrip
+                        facts={activeCoPilot?.researchData?.facts}
+                        lang={lang}
+                      />
+
+                      {/* Detailed Analysis Drawer (Stress tests, Breaking point, Data Provenance) */}
+                      <DetailedAnalysisDrawer
+                        analysis={activeAnalysis}
+                        lang={lang}
+                        currency={currency}
+                      />
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
           </div>
         )}
       </main>

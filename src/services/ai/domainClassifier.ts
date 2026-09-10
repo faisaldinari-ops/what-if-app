@@ -88,6 +88,9 @@ export function classifyProjectDomain(prompt: string): ProjectDomain {
     p.includes('restaurant') ||
     p.includes('café') ||
     p.includes('boulangerie') ||
+    p.includes('coiffure') ||
+    p.includes('coiffeur') ||
+    p.includes('salon') ||
     p.includes('électricien') ||
     p.includes('plombier') ||
     p.includes('artisan') ||

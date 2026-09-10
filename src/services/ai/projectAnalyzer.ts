@@ -3,6 +3,8 @@ import { UserExtractedData, MissingQuestion, DecisionAnalysis } from '../../type
 import { CoPilotResponse } from '../../types/planning';
 import { SupportedLang, SupportedCurrency } from '../../i18n';
 import { DecisionController } from '../../core/controller/DecisionController';
+import { CoreDecisionResponse } from '../../core/controller/ResponseComposer';
+import { calculateFeasibility } from '../../logic/feasibilityEngine';
 
 export interface AnalysisResponse {
   data: UserExtractedData;
@@ -11,6 +13,7 @@ export interface AnalysisResponse {
   analysis?: DecisionAnalysis;
   coPilot?: CoPilotResponse;
   aiEnhanced?: boolean;
+  coreResponse?: CoreDecisionResponse;
 }
 
 export async function analyzeProjectInput(
@@ -58,6 +61,91 @@ export async function analyzeProjectInput(
       },
       missingQuestions: [response.question],
       isReadyForAnalysis: false,
+      coreResponse: response
+    };
+  }
+
+  if (response.type === 'COST_ESTIMATE') {
+    const baseAnalysis = calculateFeasibility({
+      prompt,
+      projectTitle: response.state.rawGoal,
+      category: 'entrepreneurship',
+      budget: response.state.availableBudget.value !== 'UNKNOWN' ? (response.state.availableBudget.value as number) : undefined,
+      projectStartupCost: response.minimumEstimate,
+      customAnswers: nextCustomAnswers
+    }, lang, currency);
+
+    const analysis: DecisionAnalysis = {
+      ...baseAnalysis,
+      isCostEstimateOnly: true,
+      score: 80,
+      verdict: 'feasible',
+      feasibilityState: 'POSSIBLE_NOW',
+      verdictTitle: lang === 'fr' ? `Estimation de démarrage : ${response.minimumEstimate.toLocaleString()} € à ${response.maximumEstimate.toLocaleString()} €` : `Startup Estimate: ${response.minimumEstimate.toLocaleString()} € - ${response.maximumEstimate.toLocaleString()} €`,
+      verdictSummary: response.summary,
+      metrics: {
+        ...baseAnalysis.metrics,
+        budgetNeeded: response.minimumEstimate,
+      }
+    };
+
+    const coPilot: CoPilotResponse = {
+      intent: 'ESTIMATE_COST',
+      domain: mapCategory(response.state.activeDomains[0]),
+      headlineVerdict: lang === 'fr' ? `BUDGET ESTIMÉ : ${response.minimumEstimate.toLocaleString()} € - ${response.maximumEstimate.toLocaleString()} €` : `ESTIMATED BUDGET: ${response.minimumEstimate.toLocaleString()} € - ${response.maximumEstimate.toLocaleString()} €`,
+      whySummary: response.summary,
+      keyFigures: [
+        { label: lang === 'fr' ? 'Investissement principal' : 'Main Investment', value: `${response.minimumEstimate} € - ${response.maximumEstimate} €`, highlight: true },
+        { label: lang === 'fr' ? 'Structure & Formalités' : 'Legal & Setup', value: lang === 'fr' ? 'Variable selon statut' : 'Varies by entity type' }
+      ],
+      mainObstacle: {
+        title: lang === 'fr' ? "Validation du modèle" : "Model Validation",
+        description: lang === 'fr' ? "L'enjeu principal sera de trouver vos premiers clients pour rentabiliser cet investissement." : "The main challenge is securing early customers to ROI this investment.",
+        priority: 'medium'
+      },
+      recommendationShortPlan: lang === 'fr' ? "Démarrez petit (MVP) pour valider votre marché avant de faire de gros achats." : "Start lean (MVP) to validate the market before heavy capital expenditure.",
+      options: {
+        original: { name: lang === 'fr' ? "Lancement complet" : "Full Launch", cost: `${response.maximumEstimate} €`, summary: lang === 'fr' ? "Équipement neuf, standard" : "New equipment, standard setup" },
+        reduced: { name: lang === 'fr' ? "Version allégée" : "Lean Version", cost: `${response.minimumEstimate} €`, summary: lang === 'fr' ? "Équipement d'occasion / location" : "Used gear / leasing" },
+        minimal: { name: lang === 'fr' ? "Phase de test (MVP)" : "Test Phase (MVP)", cost: `${Math.round(response.minimumEstimate * 0.4)} €`, summary: lang === 'fr' ? "Le strict minimum pour tester" : "Bare minimum to validate" }
+      },
+      stepByStepPlan: [
+        { step: 1, title: lang === 'fr' ? "Validation du projet" : "Project Validation", detail: lang === 'fr' ? "Étude du besoin local" : "Local market research", timing: "Semaine 1" },
+        { step: 2, title: lang === 'fr' ? "Statut juridique" : "Legal Entity", detail: lang === 'fr' ? "Immatriculation adaptée" : "Appropriate registration", timing: "Semaine 2" },
+        { step: 3, title: lang === 'fr' ? "Assurance & Matériel" : "Insurance & Gear", detail: lang === 'fr' ? "Assurance RC Pro & achat du strict nécessaire" : "Liability insurance & essential gear", timing: "Semaine 3" }
+      ],
+      researchFacts: response.sources.map(s => ({
+        label: s.name,
+        value: s.note || 'Benchmark officiel',
+        source: s.name,
+        sourceUrl: s.url,
+        confidence: 'high' as const,
+        isEstimate: true
+      })),
+      confidence: 'high',
+      confidenceExplanation: lang === 'fr' ? "Estimation basée sur les moyennes du marché pour ce type d'activité." : "Estimate based on market averages for this activity type.",
+      smartCTAs: [
+        {
+          id: 'compare-budget',
+          label: lang === 'fr' ? "Comparer avec mon budget disponible" : "Compare with my available budget",
+          actionType: 'BUILD_PATH'
+        }
+      ]
+    };
+
+    return {
+      data: {
+        prompt,
+        projectTitle: response.state.rawGoal,
+        category: 'entrepreneurship',
+        budget: response.state.availableBudget.value !== 'UNKNOWN' ? response.state.availableBudget.value as number : undefined,
+        customAnswers: nextCustomAnswers
+      },
+      missingQuestions: [],
+      isReadyForAnalysis: true,
+      analysis,
+      coPilot,
+      coreResponse: response
     };
   }
 
@@ -74,7 +162,8 @@ export async function analyzeProjectInput(
     },
     missingQuestions: [],
     isReadyForAnalysis: true,
-    analysis: response.analysis,
-    coPilot: response.coPilot,
+    analysis: (response as any).analysis,
+    coPilot: (response as any).coPilot,
+    coreResponse: response
   };
 }

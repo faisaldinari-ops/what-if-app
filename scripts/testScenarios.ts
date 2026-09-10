@@ -254,7 +254,7 @@ export function runAllScenarios() {
 
     // Test 2: When no provider is configured, returns UNAVAILABLE without crashing
     try {
-      setSearchProviderForTesting(null);
+      setSearchProviderForTesting('FORCE_UNAVAILABLE');
       const unavailResult = await executeGroundedSearch('test query without keys');
       if (unavailResult.searchMode !== 'UNAVAILABLE') {
         throw new Error(`Expected searchMode: UNAVAILABLE when no provider configured, got: ${unavailResult.searchMode}`);
@@ -388,6 +388,61 @@ export function runAllScenarios() {
       passed++;
     } catch (err: any) {
       console.error('❌ [Free Guardrail Allow-list Refusal] FAILED:', err.message);
+      failed++;
+    }
+
+    // Test 7: DecisionController Cost Estimation flow (Scenario P: Ongles & Faux Cils)
+    try {
+      const { DecisionController } = await import('../src/core/controller/DecisionController');
+
+      const prompt = "Je veux lancer une activité d'ongles et faux cils, ça me coûterait combien pour démarrer ?";
+      
+      // Turn 1: Ask single high-impact question (operatingModel), NEVER ask budget
+      const turn1 = await DecisionController.processTurn(prompt, null, 'fr', 'EUR');
+      if (turn1.type !== 'NEEDS_INFORMATION') {
+        throw new Error(`Expected turn 1 to be NEEDS_INFORMATION, got ${turn1.type}`);
+      }
+      if (turn1.question.id !== 'operatingModel') {
+        throw new Error(`Expected question to be operatingModel, got ${turn1.question.id}`);
+      }
+      if (!turn1.question.options?.some(o => o.value === 'home')) {
+        throw new Error('Expected options to include home');
+      }
+
+      // Turn 2: User answers 'home' (domicile)
+      const turn2 = await DecisionController.processTurn(
+        'Travailler de chez moi',
+        turn1.state,
+        'fr',
+        'EUR',
+        { operatingModel: 'home' }
+      );
+
+      if (turn2.type !== 'COST_ESTIMATE') {
+        throw new Error(`Expected turn 2 to be COST_ESTIMATE, got ${turn2.type}`);
+      }
+
+      const est = turn2 as any;
+      if (est.minimumEstimate < 600 || est.minimumEstimate > 800) {
+        throw new Error(`Expected minimumEstimate around ~660-700 €, got ${est.minimumEstimate}`);
+      }
+      if (est.maximumEstimate < 1200 || est.maximumEstimate > 1600) {
+        throw new Error(`Expected maximumEstimate around ~1300-1500 €, got ${est.maximumEstimate}`);
+      }
+      if (!est.costItems || est.costItems.length < 5) {
+        throw new Error(`Expected itemized cost items list, got ${est.costItems?.length}`);
+      }
+      if (!est.sources || est.sources.length === 0) {
+        throw new Error('Expected verifiable sources for cost estimate');
+      }
+
+      console.log('✅ [DecisionController: Cost Estimation (Ongles & Cils)]');
+      console.log(`   - Turn 1: Correctly requested operatingModel without demanding budget.`);
+      console.log(`   - Turn 2: Delivered grounded CostEstimate (${est.minimumEstimate} € - ${est.maximumEstimate} €) with ${est.costItems.length} verified cost items.`);
+      console.log('');
+      passed++;
+    } catch (err: any) {
+      console.error('❌ [DecisionController: Cost Estimation] FAILED:', err.message);
       failed++;
     }
 

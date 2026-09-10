@@ -24,17 +24,24 @@ export function calculateFeasibility(
   const archetype = matchArchetype(userInput.prompt);
 
   // 1. Resolve effective financial values with fallbacks to realistic benchmarks
-  const budgetAvailable = Math.max(0, userInput.budget !== undefined ? userInput.budget : 0);
-  const baselineIncome = Math.max(0, userInput.monthlyIncome !== undefined ? userInput.monthlyIncome : 0);
-  const baselineExpenses = Math.max(200, userInput.monthlyExpenses !== undefined ? userInput.monthlyExpenses : 0);
+  const hasUserBudget = userInput.budget !== undefined && userInput.budget !== null;
+  const budgetAvailable = Math.max(0, hasUserBudget ? userInput.budget! : 0);
 
+  const hasUserStartupCost = userInput.projectStartupCost !== undefined && userInput.projectStartupCost !== null;
   const startupCost = Math.max(
     0,
-    userInput.projectStartupCost !== undefined ? userInput.projectStartupCost : archetype.estimatedStartupCost
+    hasUserStartupCost ? userInput.projectStartupCost! : archetype.estimatedStartupCost
   );
+
+  const hasUserIncome = userInput.monthlyIncome !== undefined && userInput.monthlyIncome !== null;
+  const hasUserExpenses = userInput.monthlyExpenses !== undefined && userInput.monthlyExpenses !== null;
+
+  const baselineIncome = hasUserIncome ? Math.max(0, userInput.monthlyIncome!) : 0;
+  const baselineExpenses = hasUserExpenses ? Math.max(0, userInput.monthlyExpenses!) : 0;
+
   const projectMonthlyCost = Math.max(
     0,
-    userInput.projectMonthlyRunningCost !== undefined ? userInput.projectMonthlyRunningCost : archetype.estimatedMonthlyCost
+    userInput.projectMonthlyRunningCost !== undefined ? userInput.projectMonthlyRunningCost : 0
   );
   const expectedRevenue = Math.max(
     0,
@@ -46,30 +53,50 @@ export function calculateFeasibility(
   );
 
   // 2. Core calculations
-  const safetyReserveRecommended = Math.max(
-    archetype.minimumSafetyBuffer,
-    Math.round(baselineExpenses * 3 + projectMonthlyCost * 2)
-  );
-  const budgetNeeded = Math.round(startupCost + safetyReserveRecommended);
-  const gap = Math.round(budgetAvailable - budgetNeeded);
+  // Safety reserve: only calculate from recurring expenses if user actually provided recurring expenses
+  const safetyReserveRecommended = hasUserExpenses
+    ? Math.max(archetype.minimumSafetyBuffer, Math.round(baselineExpenses * 3 + projectMonthlyCost * 2))
+    : Math.round(startupCost * 0.2);
+
+  // Strict required launch budget
+  const budgetNeeded = Math.round(startupCost + (hasUserExpenses ? safetyReserveRecommended : 0));
+
+  // Strict mathematical invariant:
+  // If budgetAvailable >= startupCost, funding is secured!
+  let gap = 0;
+  if (budgetAvailable >= startupCost) {
+    // Surplus beyond startup cost
+    gap = Math.max(0, budgetAvailable - startupCost);
+  } else {
+    // Missing funds to launch
+    gap = -(startupCost - budgetAvailable);
+  }
 
   // Total ongoing monthly expenses when project is active
   const totalMonthlyExpenses = Math.round(baselineExpenses + projectMonthlyCost);
-  // Ongoing monthly revenues once project reaches normal ramp-up
+  // Ongoing monthly revenues
   const totalMonthlyRevenues = Math.round(
     userInput.category === 'entrepreneurship'
-      ? expectedRevenue // Full-time venture
+      ? expectedRevenue
       : baselineIncome + expectedRevenue
   );
 
-  const monthlyMargin = Math.round(totalMonthlyRevenues - totalMonthlyExpenses);
+  // Monthly margin: only calculate cash deficit if user gave expenses
+  let monthlyMargin = 0;
+  if (hasUserIncome && hasUserExpenses) {
+    monthlyMargin = Math.round(totalMonthlyRevenues - totalMonthlyExpenses);
+  } else if (hasUserExpenses && baselineExpenses > 0) {
+    monthlyMargin = -Math.round(totalMonthlyExpenses);
+  } else {
+    monthlyMargin = 0;
+  }
 
   // Runway calculation
   const remainingCashAfterStartup = budgetAvailable - startupCost;
   let runwayMonths: number | 'sustainable' | 'insolvent';
   if (remainingCashAfterStartup < 0) {
     runwayMonths = 'insolvent';
-  } else if (monthlyMargin >= 0) {
+  } else if (!hasUserExpenses || monthlyMargin >= 0) {
     runwayMonths = 'sustainable';
   } else {
     const monthlyDeficit = Math.abs(monthlyMargin);
@@ -81,47 +108,47 @@ export function calculateFeasibility(
   if (gap >= 0) {
     realisticMonths = Math.max(1, rampUpMonths);
   } else {
-    // How many months to save the gap from current net savings (baselineIncome - baselineExpenses)
-    const currentMonthlySavings = Math.max(100, baselineIncome - baselineExpenses);
-    const monthsToSaveGap = Math.ceil(Math.abs(gap) / currentMonthlySavings);
-    realisticMonths = Math.min(36, Math.max(rampUpMonths, monthsToSaveGap));
+    const savingsCapacity = hasUserIncome && hasUserExpenses && baselineIncome > baselineExpenses
+      ? (baselineIncome - baselineExpenses)
+      : 0;
+    if (savingsCapacity > 50) {
+      realisticMonths = Math.min(36, Math.max(rampUpMonths, Math.ceil(Math.abs(gap) / savingsCapacity)));
+    } else {
+      realisticMonths = Math.max(1, rampUpMonths);
+    }
   }
 
   // 3. Documented, deterministic Feasibility Score formula (0 to 100)
   let rawScore = 50;
 
-  // Factor A: Capital Adequacy (ratio available / needed)
-  const capitalRatio = budgetNeeded > 0 ? budgetAvailable / budgetNeeded : 1;
-  if (capitalRatio >= 1.5) rawScore += 25;
-  else if (capitalRatio >= 1.1) rawScore += 20;
-  else if (capitalRatio >= 0.9) rawScore += 12;
-  else if (capitalRatio >= 0.7) rawScore += 2;
-  else if (capitalRatio >= 0.4) rawScore -= 18;
-  else rawScore -= 32;
+  // Factor A: Capital Adequacy (ratio available / startupCost)
+  const capitalRatio = startupCost > 0 ? budgetAvailable / startupCost : 1;
+  if (capitalRatio >= 1.5) rawScore += 30;
+  else if (capitalRatio >= 1.0) rawScore += 22;
+  else if (capitalRatio >= 0.8) rawScore += 10;
+  else if (capitalRatio >= 0.5) rawScore -= 10;
+  else rawScore -= 25;
 
-  // Factor B: Monthly Cashflow Cushion
-  if (monthlyMargin >= 1000) rawScore += 15;
-  else if (monthlyMargin >= 300) rawScore += 10;
-  else if (monthlyMargin >= 0) rawScore += 4;
-  else if (monthlyMargin >= -500) rawScore -= 12;
-  else rawScore -= 24;
+  // Factor B: Monthly Cashflow Cushion (only if known)
+  if (hasUserIncome && hasUserExpenses) {
+    if (monthlyMargin >= 500) rawScore += 12;
+    else if (monthlyMargin >= 0) rawScore += 5;
+    else if (monthlyMargin >= -300) rawScore -= 8;
+    else rawScore -= 18;
+  }
 
   // Factor C: Runway after startup
-  if (runwayMonths === 'sustainable') rawScore += 10;
+  if (runwayMonths === 'sustainable') rawScore += 8;
   else if (typeof runwayMonths === 'number') {
-    if (runwayMonths >= 18) rawScore += 8;
-    else if (runwayMonths >= 12) rawScore += 4;
-    else if (runwayMonths >= 6) rawScore -= 4;
-    else rawScore -= 16;
+    if (runwayMonths >= 12) rawScore += 5;
+    else if (runwayMonths < 6) rawScore -= 10;
   } else if (runwayMonths === 'insolvent') {
-    rawScore -= 25;
+    rawScore -= 20;
   }
 
   // Factor D: Safety reserve coverage
   if (remainingCashAfterStartup >= safetyReserveRecommended) {
     rawScore += 5;
-  } else {
-    rawScore -= 8;
   }
 
   // Bound score mathematically between 10 and 96 (leaving room for real world uncertainty)
@@ -183,18 +210,33 @@ export function calculateFeasibility(
     title: string;
     description: string;
     priorityLevel: 'critical' | 'warning' | 'info';
-  } = {
-    title: lang === 'fr' ? 'Écart de trésorerie de départ' : lang === 'es' ? 'Desfase de liquidez inicial' : 'Initial Cash Shortfall',
-    description:
-      lang === 'fr'
-        ? `Il te manque environ ${formatCurrency(Math.abs(gap), currency)} pour financer l’installation tout en gardant une réserve de sécurité vitale de ${formatCurrency(safetyReserveRecommended, currency)}.`
-        : lang === 'es'
-        ? `Faltan aproximadamente ${formatCurrency(Math.abs(gap), currency)} para cubrir el arranque y conservar una reserva prudente de ${formatCurrency(safetyReserveRecommended, currency)}.`
-        : `You need an additional ${formatCurrency(Math.abs(gap), currency)} to launch comfortably without depleting your ${formatCurrency(safetyReserveRecommended, currency)} emergency buffer.`,
-    priorityLevel: gap < 0 ? ('critical' as const) : ('info' as const)
   };
 
-  if (gap >= 0 && monthlyMargin < 0) {
+  if (gap >= 0) {
+    mainProblem = {
+      title: lang === 'fr' ? 'Sécurisation des premiers clients' : lang === 'es' ? 'Validación comercial' : 'Early Customer Acquisition',
+      description:
+        lang === 'fr'
+          ? `Ton capital de départ (${formatCurrency(budgetAvailable, currency)}) finance entièrement le démarrage (${formatCurrency(startupCost, currency)}) avec une réserve disponible de ${formatCurrency(gap, currency)}. L’enjeu prioritaire est de valider ton offre et d'acquérir tes 10 premiers clients.`
+          : lang === 'es'
+          ? `Tu capital inicial (${formatCurrency(budgetAvailable, currency)}) cubre completamente el arranque con una reserva de ${formatCurrency(gap, currency)}. La prioridad es captar los primeros clientes.`
+          : `Your initial capital (${formatCurrency(budgetAvailable, currency)}) fully covers startup requirements with a protective cushion of ${formatCurrency(gap, currency)}. The primary focus is early client traction.`,
+      priorityLevel: 'info'
+    };
+  } else {
+    mainProblem = {
+      title: lang === 'fr' ? 'Écart de trésorerie de départ' : lang === 'es' ? 'Desfase de liquidez inicial' : 'Initial Cash Shortfall',
+      description:
+        lang === 'fr'
+          ? `Il te manque environ ${formatCurrency(Math.abs(gap), currency)} pour financer l’installation recommandée (${formatCurrency(startupCost, currency)}).`
+          : lang === 'es'
+          ? `Faltan aproximadamente ${formatCurrency(Math.abs(gap), currency)} para cubrir la inversión de arranque (${formatCurrency(startupCost, currency)}).`
+          : `You need an additional ${formatCurrency(Math.abs(gap), currency)} to cover initial startup outlays (${formatCurrency(startupCost, currency)}).`,
+      priorityLevel: 'critical'
+    };
+  }
+
+  if (gap >= 0 && hasUserExpenses && monthlyMargin < 0) {
     mainProblem = {
       title: lang === 'fr' ? 'Déficit mensuel récurrent' : lang === 'es' ? 'Déficit operativo mensual' : 'Negative Monthly Cashflow',
       description:
@@ -541,10 +583,13 @@ export function calculateFeasibility(
     ]
   };
 
+  const isBusiness = userInput.category === 'entrepreneurship';
+
   return {
     id: `decision-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     createdAt: new Date().toISOString(),
     userInput,
+    isSimpleGoal: !isBusiness,
     score,
     verdict,
     feasibilityState,

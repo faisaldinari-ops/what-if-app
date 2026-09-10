@@ -303,13 +303,14 @@ export class MockSearchProvider implements SearchProvider {
 }
 
 // Active provider instance (can be overridden for unit/integration testing)
-let activeSearchProvider: SearchProvider | null = null;
+let activeSearchProvider: SearchProvider | null | 'FORCE_UNAVAILABLE' = null;
 
-export function setSearchProviderForTesting(provider: SearchProvider | null): void {
+export function setSearchProviderForTesting(provider: SearchProvider | null | 'FORCE_UNAVAILABLE'): void {
   activeSearchProvider = provider;
 }
 
 export function getActiveSearchProvider(): SearchProvider | null {
+  if (activeSearchProvider === 'FORCE_UNAVAILABLE') return null;
   if (activeSearchProvider) return activeSearchProvider;
 
   const tavily = new TavilySearchProvider();

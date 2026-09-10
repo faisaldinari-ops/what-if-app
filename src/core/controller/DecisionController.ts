@@ -1,9 +1,17 @@
 // src/core/controller/DecisionController.ts
-import { ProjectState, createInitialProjectState, Fact, createUnknownFact } from '../types';
+import { ProjectState, createInitialProjectState, Fact, createUnknownFact, OperatingModel } from '../types';
 import { UnderstandingEngine } from '../engine/UnderstandingEngine';
-import { ResponseComposer, NeedsInformationResponse, RecommendationResponse } from './ResponseComposer';
+import {
+  ResponseComposer,
+  NeedsInformationResponse,
+  RecommendationResponse,
+  CostEstimateResponse,
+  CoreDecisionResponse
+} from './ResponseComposer';
 import { MissingQuestion, DecisionAnalysis } from '../../types/decision';
 import { calculateFeasibility } from '../../logic/feasibilityEngine';
+import { QuestionPlanner } from './QuestionPlanner';
+import { CostEstimator } from '../specialists/CostEstimator';
 
 export class DecisionController {
   
@@ -13,7 +21,7 @@ export class DecisionController {
     lang: 'fr' | 'en' | 'es' = 'fr',
     currency: string = 'EUR',
     frontendAnswers?: Record<string, any>
-  ): Promise<NeedsInformationResponse | RecommendationResponse> {
+  ): Promise<CoreDecisionResponse> {
     
     // 1. Initialize or load state
     let state = currentState || createInitialProjectState(message);
@@ -27,6 +35,9 @@ export class DecisionController {
       if (frontendAnswers['disambiguate_intent']) {
         state.primaryIntent = { value: frontendAnswers['disambiguate_intent'], origin: 'USER_PROVIDED' };
       }
+      if (frontendAnswers['operatingModel']) {
+        state.operatingModel = { value: frontendAnswers['operatingModel'] as OperatingModel, origin: 'USER_PROVIDED' };
+      }
       if (frontendAnswers['originLocation']) {
         state.originLocation = { value: frontendAnswers['originLocation'], origin: 'USER_PROVIDED' };
       }
@@ -39,16 +50,22 @@ export class DecisionController {
       if (frontendAnswers['availableBudget']) {
         state.availableBudget = { value: parseFloat(frontendAnswers['availableBudget']), origin: 'USER_PROVIDED' };
       }
-      if (frontendAnswers['_budget'] !== undefined) {
+      if (frontendAnswers['monthlyIncome'] !== undefined && frontendAnswers['monthlyIncome'] !== null) {
+        state.monthlyIncome = { value: parseFloat(frontendAnswers['monthlyIncome']), origin: 'USER_PROVIDED' };
+      }
+      if (frontendAnswers['monthlyExpenses'] !== undefined && frontendAnswers['monthlyExpenses'] !== null) {
+        state.monthlyExpenses = { value: parseFloat(frontendAnswers['monthlyExpenses']), origin: 'USER_PROVIDED' };
+      }
+      if (frontendAnswers['_budget'] !== undefined && frontendAnswers['_budget'] !== null) {
         state.availableBudget = { value: frontendAnswers['_budget'], origin: 'USER_PROVIDED' };
       }
-      if (frontendAnswers['_monthlyIncome'] !== undefined) {
+      if (frontendAnswers['_monthlyIncome'] !== undefined && frontendAnswers['_monthlyIncome'] !== null) {
         state.monthlyIncome = { value: frontendAnswers['_monthlyIncome'], origin: 'USER_PROVIDED' };
       }
-      if (frontendAnswers['_monthlyExpenses'] !== undefined) {
+      if (frontendAnswers['_monthlyExpenses'] !== undefined && frontendAnswers['_monthlyExpenses'] !== null) {
         state.monthlyExpenses = { value: frontendAnswers['_monthlyExpenses'], origin: 'USER_PROVIDED' };
       }
-      if (frontendAnswers['_durationMonths'] !== undefined) {
+      if (frontendAnswers['_durationMonths'] !== undefined && frontendAnswers['_durationMonths'] !== null) {
         state.durationMonths = { value: frontendAnswers['_durationMonths'], origin: 'USER_PROVIDED' };
       }
     }
@@ -56,17 +73,77 @@ export class DecisionController {
     // 4. Derive facts (savings capacity, etc.)
     state = this.deriveFacts(state);
 
-    // 4. Update Readiness
+    // 5. Update Readiness & determine if Cost Estimation applies
     this.updateReadiness(state);
 
-    // 5. Decide Next Action
+    // Case A: User explicitly asks for COST ESTIMATE (e.g. "ça me coûterait combien pour démarrer ?")
+    if (state.requestIntent.value === 'ESTIMATE_COST') {
+      const isBusiness = state.activeDomains.includes('business') || state.primaryIntent.value === 'START_BUSINESS';
+      
+      if (isBusiness) {
+        // If operating model is still unknown, we must ask the single high-impact question
+        if (state.operatingModel.value === 'UNKNOWN') {
+          const planned = QuestionPlanner.selectNextBestQuestion(state, lang);
+          state.nextBestAction = planned.nextAction;
+          state.readiness = 'NEEDS_INFO';
+          const msg = lang === 'fr'
+            ? 'Oui. Le coût change énormément selon la façon dont tu veux démarrer.'
+            : 'Yes. The startup cost varies significantly depending on your setup.';
+          return ResponseComposer.composeNeedsInfo(state, planned.question, msg, planned.nextAction, planned.ctaLabel);
+        }
+
+        // Operating model is known (or explicitly provided, e.g. "chez moi", "salon", "mobile")
+        // Build genuine CostEstimateResponse without inventing fake margins or fake feasibility score!
+        const activity = state.activitySubtype.value !== 'UNKNOWN' ? state.activitySubtype.value : state.rawGoal;
+        const estimateResult = CostEstimator.estimate(activity, state.operatingModel.value, currency);
+
+        state.costEstimateRange = {
+          min: estimateResult.minimumEstimate,
+          max: estimateResult.maximumEstimate,
+          items: estimateResult.costItems
+        };
+        state.sources = estimateResult.sources;
+        state.assumptions = estimateResult.assumptions;
+        state.readiness = 'READY_FOR_RECOMMENDATION';
+
+        const followUpQuestion: MissingQuestion = {
+          id: 'availableBudget',
+          field: 'budget',
+          type: 'number',
+          question: lang === 'fr'
+            ? 'Tu veux maintenant que je compare cette fourchette à ton budget disponible ?'
+            : lang === 'es'
+            ? '¿Quieres que compare este rango con tu presupuesto disponible?'
+            : 'Would you like me to compare this range with your available budget?',
+          placeholder: 'ex. 1 000'
+        };
+
+        return ResponseComposer.composeCostEstimate(
+          state,
+          `Estimation de démarrage : ${state.rawGoal}`,
+          activity,
+          estimateResult.operatingModel,
+          estimateResult.minimumEstimate,
+          estimateResult.maximumEstimate,
+          currency,
+          estimateResult.costItems,
+          estimateResult.sources,
+          estimateResult.assumptions,
+          estimateResult.summary,
+          followUpQuestion
+        );
+      }
+    }
+
+    // Case B: System needs information for other intents/domains
     if (state.readiness === 'NEEDS_INFO') {
-      const question = this.determineBestQuestion(state, lang);
-      const msg = lang === 'fr' ? 'On peut chercher une solution.' : 'Let us look into this.';
-      return ResponseComposer.composeNeedsInfo(state, question, msg);
+      const planned = QuestionPlanner.selectNextBestQuestion(state, lang);
+      state.nextBestAction = planned.nextAction;
+      const msg = lang === 'fr' ? 'Pour avancer concrètement :' : 'To take the next step:';
+      return ResponseComposer.composeNeedsInfo(state, planned.question, msg, planned.nextAction, planned.ctaLabel);
     } 
 
-    // If ready, we do calculations.
+    // Case C: Build standard recommendation
     return this.buildRecommendation(state, lang, currency);
   }
 
@@ -90,7 +167,7 @@ export class DecisionController {
   private static updateReadiness(state: ProjectState) {
     state.missingCriticalFacts = [];
 
-    // Rule 1: Intent or Domain
+    // Rule 1: Intent or Domain ambiguous
     if (state.primaryIntent.value === 'UNKNOWN' && state.activeDomains.length === 0) {
       state.missingCriticalFacts.push('intent_or_domain');
       state.readiness = 'NEEDS_INFO';
@@ -106,10 +183,37 @@ export class DecisionController {
     }
 
     // Business Domain Rules
-    if (state.activeDomains.includes('business') || state.primaryIntent.value === 'START_BUSINESS') {
-      if (state.availableBudget.value === 'UNKNOWN') state.missingCriticalFacts.push('availableBudget');
-      if (state.profession.value === 'UNKNOWN' && !state.rawGoal.toLowerCase().includes('site')) {
-        state.missingCriticalFacts.push('profession');
+    const isBusiness = state.activeDomains.includes('business') || state.primaryIntent.value === 'START_BUSINESS';
+
+    if (isBusiness) {
+      // If user asks "HOW MUCH DOES IT COST?" (ESTIMATE_COST):
+      // Available budget is NOT a required input! Operating model is what determines cost.
+      if (state.requestIntent.value === 'ESTIMATE_COST') {
+        if (state.operatingModel.value === 'UNKNOWN') {
+          state.missingCriticalFacts.push('operatingModel');
+        }
+      } else if (state.requestIntent.value === 'CHECK_AFFORDABILITY') {
+        // If user asks "Can I afford it?", availableBudget IS required
+        if (state.availableBudget.value === 'UNKNOWN') state.missingCriticalFacts.push('availableBudget');
+      } else if (state.requestIntent.value === 'FIND_SOLUTION') {
+        // 0 € or no money: budget is already 0, do NOT ask for it!
+      } else {
+        // General business launch without explicit cost query
+        if (state.availableBudget.value === 'UNKNOWN') state.missingCriticalFacts.push('availableBudget');
+      }
+    } else {
+      // NON-BUSINESS (Simple Goals like Travel, Purchase, Life Change)
+      // If the budget is known, we check if they need a savings plan. 
+      // Travel archetype assumes ~3000 by default if duration is 14 days, purchase assumes ~10000.
+      // Let's use a generic rough estimate to trigger the savings plan questionnaire.
+      if (state.availableBudget.value !== 'UNKNOWN') {
+        const budget = state.availableBudget.value as number;
+        const estCost = state.activeDomains.includes('travel') ? 3000 : 5000;
+        
+        if (budget < estCost) {
+          if (state.monthlyIncome.value === 'UNKNOWN') state.missingCriticalFacts.push('monthlyIncome');
+          else if (state.monthlyExpenses.value === 'UNKNOWN') state.missingCriticalFacts.push('monthlyExpenses');
+        }
       }
     }
 
@@ -118,72 +222,6 @@ export class DecisionController {
     } else {
       state.readiness = 'READY_FOR_RECOMMENDATION';
     }
-  }
-
-  private static determineBestQuestion(state: ProjectState, lang: string): MissingQuestion {
-    const isFr = lang === 'fr';
-
-    if (state.missingCriticalFacts.includes('intent_or_domain')) {
-       return {
-         id: 'disambiguate_intent',
-         field: 'customAnswers',
-         type: 'choice',
-         question: isFr ? 'Tu veux surtout :' : 'Do you want to:',
-         options: [
-           { label: isFr ? 'Voyager' : 'Travel', value: 'LEAVE_OR_TRAVEL' },
-           { label: isFr ? 'Partir vivre ailleurs' : 'Relocate', value: 'RELOCATE' },
-           { label: isFr ? 'Changer completement de vie' : 'Change my life completely', value: 'LIFE_CHANGE' }
-         ]
-       };
-    }
-
-    if (state.missingCriticalFacts.includes('originLocation')) {
-      return {
-        id: 'originLocation',
-        field: 'customAnswers',
-        type: 'text',
-        question: isFr ? 'Tu pars de ou ?' : 'Where are you departing from?'
-      };
-    }
-
-    if (state.missingCriticalFacts.includes('destinationLocation')) {
-      return {
-        id: 'destinationLocation',
-        field: 'customAnswers',
-        type: 'text',
-        question: isFr ? 'Tu as deja une destination en tete ?' : 'Do you have a destination in mind?'
-      };
-    }
-
-    if (state.missingCriticalFacts.includes('duration')) {
-      return {
-        id: 'duration',
-        field: 'customAnswers',
-        type: 'choice',
-        question: isFr ? 'Combien de temps souhaites-tu partir ?' : 'How long do you want to go for?',
-        options: [
-          { label: isFr ? 'Moins d une semaine' : 'Less than a week', value: '5_days' },
-          { label: isFr ? '1 a 2 semaines' : '1 to 2 weeks', value: '14_days' },
-          { label: isFr ? '1 mois ou plus' : '1 month or more', value: '30_days' }
-        ]
-      };
-    }
-
-    if (state.missingCriticalFacts.includes('availableBudget')) {
-      return {
-        id: 'availableBudget',
-        field: 'budget',
-        type: 'number',
-        question: isFr ? 'Quel est ton budget disponible pour ce projet ?' : 'What is your available budget for this project?'
-      };
-    }
-
-    return {
-      id: 'general_info',
-      field: 'customAnswers',
-      type: 'text',
-      question: isFr ? 'Peux-tu m en dire un peu plus sur ton projet ?' : 'Can you tell me more about your project?'
-    };
   }
 
   private static async buildRecommendation(state: ProjectState, lang: string, currency: string): Promise<RecommendationResponse> {
@@ -204,3 +242,4 @@ export class DecisionController {
     return ResponseComposer.composeRecommendation(state, analysis);
   }
 }
+

@@ -82,6 +82,8 @@ export interface DecisionAnalysis {
   id: string;
   createdAt: string;
   userInput: UserExtractedData;
+  isCostEstimateOnly?: boolean;
+  isSimpleGoal?: boolean;
   score: number; // 0-100
   verdict: FeasibilityVerdict;
   feasibilityState: FeasibilityState;

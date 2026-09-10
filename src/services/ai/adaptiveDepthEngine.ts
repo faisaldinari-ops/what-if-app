@@ -82,16 +82,31 @@ export function classifyAdaptiveDepth(
     return 'strategic';
   }
 
-  // 2. Entrepreneur: Business creation, artisan, freelance, trade, restaurant, e-commerce
+  // 2. Entrepreneur: Business creation, artisan, freelance, trade, restaurant, e-commerce, beauty, services
   if (
     category === 'entrepreneurship' ||
     p.includes('entreprise') ||
     p.includes('société') ||
     p.includes('societe') ||
+    p.includes('boite') ||
+    p.includes('boîte') ||
+    p.includes('creer ma') ||
+    p.includes('créer ma') ||
+    p.includes('lancer ma') ||
+    p.includes('lancer mon') ||
+    p.includes('ongle') ||
+    p.includes('cil') ||
+    p.includes('faux cils') ||
+    p.includes('esthétique') ||
+    p.includes('esthetique') ||
+    p.includes('beaute') ||
+    p.includes('beauté') ||
     p.includes('artisan') ||
     p.includes('électricien') ||
     p.includes('electricien') ||
     p.includes('plombier') ||
+    p.includes('toilettage') ||
+    p.includes('soudure') ||
     p.includes('btp') ||
     p.includes('food truck') ||
     p.includes('restaurant') ||
@@ -102,6 +117,7 @@ export function classifyAdaptiveDepth(
     p.includes('e-commerce') ||
     p.includes('freelance') ||
     p.includes('startup') ||
+    p.includes('micro-entreprise') ||
     p.includes('vendre')
   ) {
     return 'entrepreneur';
@@ -359,7 +375,7 @@ export function buildAdaptiveLevel1Summary(
     subtext: ''
   };
 
-  if (analysis.score >= 75) {
+  if (gap >= 0) {
     badgeStyle = 'emerald';
     headlineVerdict =
       lang === 'fr'
@@ -370,16 +386,16 @@ export function buildAdaptiveLevel1Summary(
 
     humanExplanation =
       lang === 'fr'
-        ? `Ton capital de départ (${formatCurrency(budgetAvailable, currency)}) couvre les besoins estimés tout en gardant une sécurité. Tu as les voyants au vert pour démarrer.`
-        : `Your upfront capital (${formatCurrency(budgetAvailable, currency)}) covers estimated needs while preserving a safety buffer. You're ready to proceed.`;
+        ? `Ton capital de départ (${formatCurrency(budgetAvailable, currency)}) finance l'intégralité du démarrage estimé (${formatCurrency(budgetNeeded, currency)}). Tu as les voyants au vert pour démarrer.`
+        : `Your upfront capital (${formatCurrency(budgetAvailable, currency)}) covers estimated launch requirements (${formatCurrency(budgetNeeded, currency)}). You're ready to proceed.`;
 
     keyFigure = {
-      value: formatCurrency(budgetAvailable, currency),
-      label: lang === 'fr' ? 'Capital disponible sécurisé' : 'Secured capital ready',
+      value: formatCurrency(gap, currency),
+      label: lang === 'fr' ? 'Excédent protecteur disponible' : 'Available safety cushion',
       subtext:
         lang === 'fr'
-          ? `Excédent de ${formatCurrency(Math.max(0, gap), currency)} après lancement`
-          : `Surplus of ${formatCurrency(Math.max(0, gap), currency)} post-launch`
+          ? `Budget nécessaire de ${formatCurrency(budgetNeeded, currency)} 100% financé`
+          : `Target cost of ${formatCurrency(budgetNeeded, currency)} fully funded`
     };
   } else if (gap < 0 && (monthlyIncome > 0 || depthType === 'simple')) {
     // GAP-TO-GOAL: Solution engine!
@@ -563,33 +579,65 @@ export function buildAdaptiveLevel1Summary(
     ];
   }
 
-  // 5. Simple mode milestone projection
-  const simpleMilestones = [
-    {
-      stepTitle: lang === 'fr' ? 'Mois 1 : Déclenchement du plan d’épargne' : 'Month 1: Savings Plan Start',
-      detail:
-        lang === 'fr'
-          ? `Automatiser un virement de ${targetSavingsMonthly} €/mois sur un livret dédié dès la paie.`
-          : `Automate a ${formatCurrency(targetSavingsMonthly, currency)} transfer to dedicated savings on payday.`,
-      timing: 'J+7'
-    },
-    {
-      stepTitle: lang === 'fr' ? 'Mois 4 : Mi-parcours & Réservation anticipée' : 'Month 4: Mid-point & Bookings',
-      detail:
-        lang === 'fr'
-          ? 'Capacité de réserver les billets d’avion ou hébergements au meilleur tarif hors saison.'
-          : 'Lock in flights and accommodations at early-bird discount rates.',
-      timing: `Mois 4 (${formatCurrency(targetSavingsMonthly * 4, currency)})`
-    },
-    {
-      stepTitle: lang === 'fr' ? `Mois ${monthsHorizon} : Budget 100% réuni` : `Month ${monthsHorizon}: Goal Reached`,
-      detail:
-        lang === 'fr'
-          ? `Le montant de ${formatCurrency(budgetNeeded, currency)} est entièrement sécurisé sans découvert ni crédit conso.`
-          : `Full target of ${formatCurrency(budgetNeeded, currency)} secured with zero high-interest consumer debt.`,
-      timing: `Mois ${monthsHorizon}`
-    }
-  ];
+  // 5. Simple mode milestone projection (domain-aware)
+  const isBusinessOrEntrepreneur =
+    depthType === 'entrepreneur' ||
+    depthType === 'strategic' ||
+    data.category === 'entrepreneurship';
+
+  const simpleMilestones = isBusinessOrEntrepreneur
+    ? [
+        {
+          stepTitle: lang === 'fr' ? 'Étape 1 : Immatriculation & Sécurisation légale' : 'Step 1: Legal Registration & Insurance',
+          detail:
+            lang === 'fr'
+              ? 'Déclaration gratuite sur le guichet unique INPI et souscription de la RC Pro.'
+              : 'Free online registration at INPI and professional liability insurance setup.',
+          timing: 'J+7'
+        },
+        {
+          stepTitle: lang === 'fr' ? 'Étape 2 : Acquisition matériel homologué' : 'Step 2: Procure Certified Equipment',
+          detail:
+            lang === 'fr'
+              ? 'Achat du kit pro essentiel et des consommables aux normes CE sans endettement.'
+              : 'Procure essential compliant starter gear and consumables with available capital.',
+          timing: 'Mois 1'
+        },
+        {
+          stepTitle: lang === 'fr' ? 'Étape 3 : Lancement & 10 premières clientes' : 'Step 3: Launch & Initial Customers',
+          detail:
+            lang === 'fr'
+              ? 'Validation de l’offre, premières réservations payantes et réinvestissement des bénéfices.'
+              : 'First paying client bookings and reinvestment of early revenues.',
+          timing: 'Mois 2-3'
+        }
+      ]
+    : [
+        {
+          stepTitle: lang === 'fr' ? 'Mois 1 : Déclenchement du plan d’épargne' : 'Month 1: Savings Plan Start',
+          detail:
+            lang === 'fr'
+              ? `Automatiser un virement de ${targetSavingsMonthly} €/mois sur un livret dédié dès la paie.`
+              : `Automate a ${formatCurrency(targetSavingsMonthly, currency)} transfer to dedicated savings on payday.`,
+          timing: 'J+7'
+        },
+        {
+          stepTitle: lang === 'fr' ? 'Mois 4 : Mi-parcours & Réservation anticipée' : 'Month 4: Mid-point & Bookings',
+          detail:
+            lang === 'fr'
+              ? 'Capacité de bloquer les dépenses prioritaires au meilleur tarif hors saison.'
+              : 'Lock in priority bookings at early-bird discount rates.',
+          timing: `Mois 4 (${formatCurrency(targetSavingsMonthly * 4, currency)})`
+        },
+        {
+          stepTitle: lang === 'fr' ? `Mois ${monthsHorizon} : Budget 100% réuni` : `Month ${monthsHorizon}: Goal Reached`,
+          detail:
+            lang === 'fr'
+              ? `Le montant de ${formatCurrency(budgetNeeded, currency)} est entièrement sécurisé sans découvert ni crédit conso.`
+              : `Full target of ${formatCurrency(budgetNeeded, currency)} secured with zero high-interest consumer debt.`,
+          timing: `Mois ${monthsHorizon}`
+        }
+      ];
 
   return {
     depthType,
