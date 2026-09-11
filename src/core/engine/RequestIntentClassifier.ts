@@ -4,6 +4,24 @@ import { RequestIntent } from '../types';
 export function classifyRequestIntent(prompt: string): RequestIntent {
   const p = prompt.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '');
 
+  // 0. VERIFY_FACT: generic third-party factual question, not a personal project request.
+  // Distinguishing signal: "combien coûte un/le/la X" (third-person article) rather than
+  // "combien ça me coûterait" / "combien pour demarrer MON projet" (first-person project framing).
+  const isGenericFactualCostQuestion =
+    /combien coute (un|une|le|la|les|des)\s/.test(p) ||
+    /how much does (a|an|the)\s.+\s(cost|require)/.test(p) ||
+    p.includes('quel est le prix d\'un') ||
+    p.includes('quel est le prix d un') ||
+    p.includes('quel est le prix de la') ||
+    p.includes('quel est le prix du');
+  const hasPersonalProjectFraming =
+    p.includes(' mon ') || p.includes(' ma ') || p.includes(' mes ') ||
+    p.includes('demarrer') || p.includes('lancer') || p.includes('creer') || p.includes('ouvrir');
+
+  if (isGenericFactualCostQuestion && !hasPersonalProjectFraming) {
+    return 'VERIFY_FACT';
+  }
+
   // 1. ESTIMATE_COST (Pure cost query: "combien ça me coûterait", "combien pour démarrer", "quel budget prévoir")
   if (
     p.includes('ca me couterai') ||
@@ -34,6 +52,9 @@ export function classifyRequestIntent(prompt: string): RequestIntent {
   }
 
   // 2. FIND_SOLUTION (0 € or "pas de sous / sans argent")
+  // Note: use a word-boundary regex for the "0€" check — a plain substring match would wrongly
+  // fire on "2000€" (which contains "0€"). Only a standalone zero should count.
+  const hasStandaloneZeroAmount = /(?:^|[^0-9])0\s*(?:€|euros?|dollars?|\$)/.test(p);
   if (
     p.includes('pas de sous') ||
     p.includes('pas d’argent') ||
@@ -42,9 +63,7 @@ export function classifyRequestIntent(prompt: string): RequestIntent {
     p.includes('sans apport') ||
     p.includes('sans budget') ||
     p.includes('zero euro') ||
-    p.includes('0 euro') ||
-    p.includes('0€') ||
-    p.includes('0 €') ||
+    hasStandaloneZeroAmount ||
     p.includes('comment faire sans un sou') ||
     p.includes('no money') ||
     p.includes('sin dinero')

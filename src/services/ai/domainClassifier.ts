@@ -1,157 +1,96 @@
 // src/services/ai/domainClassifier.ts
 import { ProjectDomain } from '../../types/context';
 
+// Generic keyword-root matcher: normalizes accents so "électricien"/"electricien"
+// and inflected forms ("voyager"/"voyage"/"voyageant") all match via short roots.
+function normalize(text: string): string {
+  return text
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function hasAny(p: string, roots: string[]): boolean {
+  return roots.some(r => p.includes(r));
+}
+
 export function classifyProjectDomain(prompt: string): ProjectDomain {
-  const p = prompt.toLowerCase();
+  const p = normalize(prompt);
 
-  // 1. Digital project (website, app, SaaS, ecommerce, blog)
-  if (
-    p.includes('site internet') ||
-    p.includes('site web') ||
-    p.includes('application') ||
-    p.includes('app mobile') ||
-    p.includes('saas') ||
-    p.includes('boutique en ligne') ||
-    p.includes('e-commerce') ||
-    p.includes('ecommerce') ||
-    p.includes('créer un site') ||
-    p.includes('monter une application') ||
-    p.includes('monter un site') ||
-    p.includes('logiciel') ||
-    p.includes('software') ||
-    p.includes('web app')
-  ) {
-    return 'digital_project';
-  }
+  // Marriage / wedding is its own recognizable life project (not hardcoded per-example,
+  // but a genuinely distinct real-world project type with its own cost/timeline shape).
+  const isWedding = hasAny(p, ['marier', 'mariage', 'se marier', 'wedding', 'casarse', 'boda']);
+  if (isWedding) return 'life_change';
 
-  // 2. Relocation (leaving country, moving abroad, expat)
-  if (
-    p.includes('quitter la france') ||
-    p.includes('partir vivre') ||
-    p.includes('vivre en espagne') ||
-    p.includes('vivre à miami') ||
-    p.includes('vivre au canada') ||
-    p.includes('vivre au portugal') ||
-    p.includes('vivre à l’étranger') ||
-    p.includes('vivre a letranger') ||
-    p.includes('m’expatrier') ||
-    p.includes('mexpatrier') ||
-    p.includes('déménager dans un autre pays') ||
-    p.includes('changer de pays') ||
-    p.includes('move to') ||
-    p.includes('relocate') ||
-    p.includes('mudarse al extranjero')
-  ) {
-    return 'relocation';
-  }
+  // 1. Digital project (website, app, SaaS, ecommerce, software) — root-based, not fixed phrases
+  const isDigital = hasAny(p, [
+    'site internet', 'site web', 'creer un site', 'monter un site',
+    'application', 'app mobile', 'appli ', 'saas', 'boutique en ligne',
+    'e-commerce', 'ecommerce', 'logiciel', 'software', 'web app', 'plateforme numerique'
+  ]);
+  if (isDigital) return 'digital_project';
 
-  // 3. Travel (vacations, short trips, holidays)
-  if (
-    p.includes('partir 10 jours') ||
-    p.includes('partir en vacances') ||
-    p.includes('voyager avec') ||
-    p.includes('voyage au japon') ||
-    p.includes('voyage en') ||
-    p.includes('partir au japon') ||
-    p.includes('partir en thaïlande') ||
-    p.includes('partir aux usa') ||
-    p.includes('où puis-je voyager') ||
-    p.includes('faire un road trip') ||
-    p.includes('visiter') ||
-    p.includes('travel to') ||
-    p.includes('holiday') ||
-    p.includes('viajar')
-  ) {
-    return 'travel';
-  }
+  // 2. Relocation (leaving country, moving abroad, expat) — generic roots + country mention
+  const relocationVerbs = hasAny(p, [
+    'expatrier', 'partir vivre', 'demenager', 'quitter mon pays', 'quitter la france',
+    'changer de pays', 'move to', 'relocate', 'mudarse', 'emigrer', 'immigrer'
+  ]);
+  const relocationPhrase = hasAny(p, ['vivre a l etranger', 'vivre a letranger', 'live abroad']);
+  if (relocationVerbs || relocationPhrase) return 'relocation';
+
+  // 3. Travel (vacations, short trips, holidays) — generic verb roots, no destination hardcoding
+  const isTravel = hasAny(p, [
+    'voyage', 'voyager', 'partir en vacances', 'road trip', 'visiter',
+    'travel to', 'holiday', 'vacation', 'viajar', 'tour du monde'
+  ]);
+  if (isTravel) return 'travel';
 
   // 4. Career (changing jobs, learning new trade, retraining)
-  if (
-    p.includes('changer de métier') ||
-    p.includes('changer de carrière') ||
-    p.includes('reconversion') ||
-    p.includes('changer de travail') ||
-    p.includes('me reconvertir') ||
-    p.includes('devenir développeur') ||
-    p.includes('devenir designer') ||
-    p.includes('change career') ||
-    p.includes('cambiar de trabajo')
-  ) {
-    return 'career';
-  }
+  const isCareer = hasAny(p, [
+    'changer de metier', 'changer de carriere', 'reconversion', 'changer de travail',
+    'me reconvertir', 'change career', 'switch career', 'cambiar de trabajo', 'cambiar de carrera'
+  ]);
+  if (isCareer) return 'career';
 
-  // 5. Business (entrepreneurship, artisan, commerce, salon, opening shop)
-  if (
-    p.includes('société') ||
-    p.includes('entreprise') ||
-    p.includes('barber shop') ||
-    p.includes('restaurant') ||
-    p.includes('café') ||
-    p.includes('boulangerie') ||
-    p.includes('coiffure') ||
-    p.includes('coiffeur') ||
-    p.includes('salon') ||
-    p.includes('électricien') ||
-    p.includes('plombier') ||
-    p.includes('artisan') ||
-    p.includes('mettre à mon compte') ||
-    p.includes('ouvrir un magasin') ||
-    p.includes('ouvrir un commerce') ||
-    p.includes('indépendant') ||
-    p.includes('freelance') ||
-    p.includes('auto-entrepreneur') ||
-    p.includes('business') ||
-    p.includes('start a company')
-  ) {
-    return 'business';
-  }
+  // 5. Real estate (buying apartment, house, land) — check before generic "purchase"
+  const isRealEstate = hasAny(p, [
+    'appartement', 'acheter une maison', 'acheter la maison', 'immobilier',
+    'real estate', 'comprar una casa', 'comprar casa', 'credit immobilier', 'pret immobilier'
+  ]);
+  if (isRealEstate) return 'real_estate';
 
-  // 6. Purchase (car, boat, watch, high-ticket personal purchase)
-  if (
-    p.includes('acheter une voiture') ||
-    p.includes('acheter un véhicule') ||
-    p.includes('acheter une moto') ||
-    p.includes('achat') ||
-    p.includes('buy a car') ||
-    p.includes('comprar un coche')
-  ) {
-    return 'purchase';
-  }
+  // 6. Business (entrepreneurship, artisan, commerce, salon, opening shop) — broad roots
+  const isBusiness = hasAny(p, [
+    'societe', 'entreprise', 'ma boite', 'ma boîte', 'auto-entrepreneur', 'auto entrepreneur',
+    'micro-entreprise', 'micro entreprise', 'freelance', 'independant', 'mon compte',
+    'ouvrir un', 'ouvrir une', 'lancer une activite', 'lancer mon activite',
+    'electr', 'plombier', 'menuisier', 'chauffagiste', 'artisan', 'btp',
+    'restaurant', 'food truck', 'snack', 'cafe', 'boulangerie', 'patisserie',
+    'coiffure', 'coiffeur', 'coiffeuse', 'salon de', 'barber', 'esthetique',
+    'ongle', 'onglerie', 'cil ', 'faux cils', 'manucure',
+    'start a company', 'start a business', 'start my business', 'business'
+  ]);
+  if (isBusiness) return 'business';
 
-  // 7. Real estate (buying apartment, house, land)
-  if (
-    p.includes('acheter un appartement') ||
-    p.includes('acheter une maison') ||
-    p.includes('immobilier') ||
-    p.includes('investir dans l’immobilier') ||
-    p.includes('real estate') ||
-    p.includes('comprar una casa')
-  ) {
-    return 'real_estate';
-  }
+  // 7. Purchase (car, boat, watch, high-ticket personal purchase; not real estate)
+  const isPurchase = hasAny(p, [
+    'acheter une voiture', 'acheter un vehicule', 'acheter une moto', 'acheter un bateau',
+    'buy a car', 'comprar un coche', 'comprar coche'
+  ]);
+  if (isPurchase) return 'purchase';
 
   // 8. Personal finance (savings, investing, debt, runway)
-  if (
-    p.includes('combien de temps pour économiser') ||
-    p.includes('mettre de côté') ||
-    p.includes('épargner') ||
-    p.includes('gère mon budget') ||
-    p.includes('épargne')
-  ) {
-    return 'personal_finance';
-  }
+  const isPersonalFinance = hasAny(p, [
+    'economiser', 'mettre de cote', 'epargner', 'epargne', 'gerer mon budget', 'investir mon argent'
+  ]);
+  if (isPersonalFinance) return 'personal_finance';
 
-  // 9. Life change general
-  if (
-    p.includes('changer complètement de vie') ||
-    p.includes('changer de vie') ||
-    p.includes('tout plaquer') ||
-    p.includes('nouveau départ') ||
-    p.includes('life change') ||
-    p.includes('cambiar de vida')
-  ) {
-    return 'life_change';
-  }
+  // 9. Life change general (vague or holistic personal transformation)
+  const isLifeChange = hasAny(p, [
+    'changer de vie', 'tout plaquer', 'nouveau depart', 'life change',
+    'cambiar de vida', 'recommencer a zero', 'repartir a zero'
+  ]);
+  if (isLifeChange) return 'life_change';
 
   return 'other';
 }

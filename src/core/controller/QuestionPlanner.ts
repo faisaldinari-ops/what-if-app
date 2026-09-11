@@ -23,8 +23,10 @@ export class QuestionPlanner {
     const isTravel = state.activeDomains.includes('travel') || state.primaryIntent.value === 'LEAVE_OR_TRAVEL';
     const rawLower = state.rawGoal.toLowerCase();
 
-    // 1. If user is asking for ESTIMATE_COST for a business (e.g. Nails, Lashes, Artisan, Restaurant, Freelance)
-    if (isEstimateCost && isBusiness) {
+    // 1. Business: operating model is the single highest-impact question for cost estimation,
+    // whether the person explicitly asked "how much does it cost" or just described launching
+    // a business in general — both paths need it before CostEstimator can produce a real figure.
+    if (isBusiness && state.missingCriticalFacts.includes('operatingModel')) {
       // Check if operating model is known
       if (state.operatingModel.value === 'UNKNOWN') {
         const isBeauty =
@@ -136,6 +138,30 @@ export class QuestionPlanner {
         informationGain: 0.8,
         userFriction: 0.25,
         decisionImpact: 0.8
+      };
+    }
+
+    // 3b. Travel: Origin (needed to estimate flight/transport cost)
+    if (state.missingCriticalFacts.includes('originLocation')) {
+      const q: MissingQuestion = {
+        id: 'originLocation',
+        field: 'customAnswers',
+        type: 'text',
+        question: isFr
+          ? 'Tu pars de quelle ville ?'
+          : isEs
+          ? '¿Desde qué ciudad viajas?'
+          : 'What city are you traveling from?',
+        placeholder: isFr ? 'ex. Paris, Marseille, Lyon' : 'e.g. Paris, London, New York'
+      };
+
+      return {
+        question: q,
+        nextAction: 'ASK',
+        ctaLabel: isFr ? 'Continuer' : isEs ? 'Continuar' : 'Continue',
+        informationGain: 0.6,
+        userFriction: 0.2,
+        decisionImpact: 0.6
       };
     }
 
