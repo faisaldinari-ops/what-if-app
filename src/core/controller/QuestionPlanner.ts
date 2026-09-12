@@ -17,9 +17,49 @@ export class QuestionPlanner {
     const isFr = lang === 'fr';
     const isEs = lang === 'es';
 
+    // 0. Relocation: "leaving the country" is asked before anything else for this domain,
+    // because it changes which facts matter next (a holiday needs dates; settling abroad needs
+    // visa/budget/target country; working abroad needs qualifications/job search facts).
+    if (state.missingCriticalFacts.includes('relocationGoal')) {
+      const q: MissingQuestion = {
+        id: 'relocationGoal',
+        field: 'customAnswers',
+        type: 'choice',
+        question: isFr
+          ? 'Tu veux surtout voyager, t\'installer ailleurs, ou repartir de zéro en travaillant dans un autre pays ?'
+          : isEs
+          ? '¿Quieres sobre todo viajar, instalarte en otro lugar, o empezar de cero trabajando en otro país?'
+          : 'Are you mainly looking to travel, settle somewhere new, or start fresh working in another country?',
+        options: [
+          {
+            label: isFr ? '✈️ Juste voyager' : isEs ? '✈️ Solo viajar' : '✈️ Just travel',
+            value: 'travel'
+          },
+          {
+            label: isFr ? '🏡 M\'installer durablement' : isEs ? '🏡 Instalarme de forma duradera' : '🏡 Settle there long-term',
+            value: 'settle'
+          },
+          {
+            label: isFr ? '💼 Travailler / repartir de zéro là-bas' : isEs ? '💼 Trabajar / empezar de cero allí' : '💼 Work / start over there',
+            value: 'work'
+          }
+        ]
+      };
+
+      return {
+        question: q,
+        nextAction: 'ASK',
+        ctaLabel: isFr ? 'Continuer' : isEs ? 'Continuar' : 'Continue',
+        informationGain: 0.9,
+        userFriction: 0.15,
+        decisionImpact: 0.9
+      };
+    }
+
     const reqIntent = state.requestIntent.value;
     const isEstimateCost = reqIntent === 'ESTIMATE_COST';
-    const isBusiness = state.activeDomains.includes('business') || state.primaryIntent.value === 'START_BUSINESS';
+    const isBusiness = state.activeDomains.includes('business') || state.activeDomains.includes('digital_project') || state.primaryIntent.value === 'START_BUSINESS';
+    const isDigitalProject = state.activeDomains.includes('digital_project');
     const isTravel = state.activeDomains.includes('travel') || state.primaryIntent.value === 'LEAVE_OR_TRAVEL';
     const rawLower = state.rawGoal.toLowerCase();
 
@@ -29,6 +69,47 @@ export class QuestionPlanner {
     if (isBusiness && state.missingCriticalFacts.includes('operatingModel')) {
       // Check if operating model is known
       if (state.operatingModel.value === 'UNKNOWN') {
+        if (isDigitalProject) {
+          const digitalQuestion: MissingQuestion = {
+            id: 'operatingModel',
+            field: 'customAnswers',
+            type: 'choice',
+            question: isFr
+              ? 'Le coût dépend surtout de comment tu veux le créer. Tu comptes plutôt :'
+              : isEs
+              ? 'El coste depende sobre todo de cómo quieres crearlo. ¿Tienes previsto:'
+              : 'The cost mainly depends on how you want to build it. Are you planning to:',
+            explanation: isFr
+              ? 'Des outils gratuits (créateur de site + hébergement gratuit) permettent de démarrer à 0 €, contre plusieurs centaines/milliers d’euros pour du développement sur-mesure.'
+              : isEs
+              ? 'Las herramientas gratuitas permiten empezar con 0 €, frente a varios cientos o miles de euros para desarrollo a medida.'
+              : 'Free tools (site builder + free hosting) let you start at €0, versus several hundred/thousand euros for custom development.',
+            options: [
+              {
+                label: isFr ? '🆓 Le faire moi-même, gratuitement (no-code)' : isEs ? '🆓 Hacerlo yo mismo, gratis (no-code)' : '🆓 Do it myself for free (no-code)',
+                value: 'diy_free'
+              },
+              {
+                label: isFr ? '💻 Faire développer sur-mesure (freelance/agence)' : isEs ? '💻 Encargar desarrollo a medida' : '💻 Have it custom-built (freelancer/agency)',
+                value: 'custom_dev'
+              },
+              {
+                label: isFr ? '❓ Je ne sais pas encore' : isEs ? '❓ No lo sé todavía' : '❓ Not sure yet',
+                value: 'unknown'
+              }
+            ]
+          };
+
+          return {
+            question: digitalQuestion,
+            nextAction: 'RESEARCH',
+            ctaLabel: isFr ? 'Estimer le coût' : isEs ? 'Estimar coste' : 'Estimate Cost',
+            informationGain: 0.95,
+            userFriction: 0.15,
+            decisionImpact: 0.95
+          };
+        }
+
         const isBeauty =
           rawLower.includes('ongle') ||
           rawLower.includes('cil') ||
@@ -190,6 +271,33 @@ export class QuestionPlanner {
         informationGain: 0.75,
         userFriction: 0.15,
         decisionImpact: 0.75
+      };
+    }
+
+    // 4b. Purchase / real estate: the price of the thing itself is required before anything
+    // else — we must never substitute a category benchmark (e.g. "car" -> 10 000 €) for what
+    // the person is actually buying.
+    if (state.missingCriticalFacts.includes('itemPrice')) {
+      const isRealEstate = state.activeDomains.includes('real_estate');
+      const q: MissingQuestion = {
+        id: 'itemPrice',
+        field: 'customAnswers',
+        type: 'number',
+        question: isFr
+          ? (isRealEstate ? 'Quel est le prix du bien que tu vises (ou une fourchette) ?' : 'Quel est le prix de ce que tu veux acheter ?')
+          : isEs
+          ? (isRealEstate ? '¿Cuál es el precio del inmueble (o un rango)?' : '¿Cuál es el precio de lo que quieres comprar?')
+          : (isRealEstate ? 'What is the price of the property you have in mind (or a range)?' : 'What is the price of the thing you want to buy?'),
+        placeholder: isRealEstate ? 'ex. 250 000' : 'ex. 15 000'
+      };
+
+      return {
+        question: q,
+        nextAction: 'ASK',
+        ctaLabel: isFr ? 'Continuer' : isEs ? 'Continuar' : 'Continue',
+        informationGain: 0.95,
+        userFriction: 0.2,
+        decisionImpact: 0.95
       };
     }
 

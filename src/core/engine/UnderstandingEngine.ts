@@ -86,8 +86,11 @@ export class UnderstandingEngine {
       }
     }
 
-    // 4. Operating Model extraction (domicile, mobile, salon, etc.)
-    if (isGenuineDomainSwitch || currentState.operatingModel.value === 'UNKNOWN') {
+    // 4. Operating Model extraction (domicile, mobile, salon, etc.) — only meaningful for
+    // physical business activities (beauty/artisan/food). For digital projects these same
+    // words have unrelated meanings ("application mobile", "boutique en ligne") and must not
+    // be misread as an answer to the diy_free/custom_dev question, which is asked separately.
+    if (domain !== 'digital_project' && (isGenuineDomainSwitch || currentState.operatingModel.value === 'UNKNOWN')) {
       if (
         p.includes('chez moi') ||
         p.includes('domicile') ||
@@ -113,6 +116,22 @@ export class UnderstandingEngine {
         updates.operatingModel = { value: 'salon', origin: 'USER_PROVIDED' };
       } else if (p.includes('en ligne') || p.includes('remote') || p.includes('online')) {
         updates.operatingModel = { value: 'online', origin: 'USER_PROVIDED' };
+      }
+    }
+
+    // 4b. Digital project operating model: only explicit, unambiguous statements about the
+    // build approach count (no generic word like "mobile" that could mean something else).
+    if (domain === 'digital_project' && (isGenuineDomainSwitch || currentState.operatingModel.value === 'UNKNOWN')) {
+      if (
+        p.includes('gratuit') || p.includes('no-code') || p.includes('nocode') ||
+        p.includes('moi meme') || p.includes('free tool') || p.includes('diy')
+      ) {
+        updates.operatingModel = { value: 'diy_free', origin: 'USER_PROVIDED' };
+      } else if (
+        p.includes('freelance') || p.includes('agence') || p.includes('developpeur') ||
+        p.includes('sur mesure') || p.includes('sur-mesure') || p.includes('custom dev')
+      ) {
+        updates.operatingModel = { value: 'custom_dev', origin: 'USER_PROVIDED' };
       }
     }
 
@@ -168,8 +187,15 @@ export class UnderstandingEngine {
     const savingsKeywords = ['apport', 'economie', 'epargne', 'budget', 'jai', 'j ai', 'capital', 'dispose'];
     const savingsMention = remainingMentions.find(m => savingsKeywords.some(kw => m.context.includes(kw)));
 
-    // Explicit 0
-    const zeroMatch = message.match(/\b0\s*(?:€|euros?|dollars?|\$)\b/i) || p.includes('0 euro') || p.includes('0 €');
+    // Explicit 0, or an unambiguous "I have no money" statement. Only phrases that leave no
+    // reasonable doubt count here — anything vaguer (e.g. "petit budget", "pas beaucoup
+    // d'argent") stays UNKNOWN and gets asked for, rather than silently resolved to 0.
+    // IMPORTANT: a standalone "0" must not be immediately preceded by another digit, otherwise
+    // "15 000 €" or "2 000 €" would wrongly match on their trailing "0 €" and silently zero out
+    // a real budget — this is exactly the kind of silent invention UNKNOWN=UNKNOWN forbids.
+    const explicitZeroPhrase = /\b(pas d.argent|pas de sous|aucun budget|aucune epargne|sans argent|sans un sou|no money|sin dinero|sin un duro)\b/.test(p);
+    const hasStandaloneZeroAmount = /(?:^|[^0-9])0\s*(?:€|euros?|dollars?|\$)/i.test(message);
+    const zeroMatch = hasStandaloneZeroAmount || explicitZeroPhrase;
 
     const isRealEstateOrPurchase = domain === 'real_estate' || domain === 'purchase';
 

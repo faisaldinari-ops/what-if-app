@@ -10,6 +10,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "test": "tsx scripts/testScenarios.ts",
+    "test:decision": "tsx scripts/decisionControllerTests.ts",
+    "test:all": "npm run test && npm run test:decision",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

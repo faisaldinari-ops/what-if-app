@@ -1,9 +1,15 @@
 // src/services/ai/serverCopilot.ts
+//
+// Server-side entry point for the /api/analyze-project route. This must stay a thin wrapper
+// (sanitization, rate-limiting, caching) around the SAME single brain the frontend uses
+// (DecisionController, via analyzeProjectInput) — never a second, independently-reasoning
+// pipeline. Previously this endpoint ran its own AI-router extraction + rule-parser fallback,
+// entirely bypassing DecisionController; that made it a second decision-maker capable of
+// producing different answers to the same question than the UI does. Fixed to delegate.
 import { parseProjectWithRules } from './ruleBasedParser';
-import { aiRouter } from './aiRouter';
 import { antiAbuse } from './rateLimiter';
 import { cacheService } from './cacheService';
-import { telemetry } from './telemetryService';
+import { analyzeProjectInput } from './projectAnalyzer';
 import { UserExtractedData, MissingQuestion } from '../../types/decision';
 
 export interface ProjectAnalysisRequest {
@@ -90,110 +96,17 @@ export async function handleProjectAnalysis(
     };
   }
 
-  // 4. Try structured AI extraction via AI Router
-  const schemaDescription = `{
-    "projectTitle": string,
-    "category": "entrepreneurship" | "money" | "real_estate" | "career" | "education" | "relocation" | "personal" | "other",
-    "location": string or null,
-    "budget": number or null,
-    "monthlyIncome": number or null,
-    "monthlyExpenses": number or null,
-    "projectStartupCost": number or null,
-    "projectMonthlyRunningCost": number or null,
-    "projectExpectedRevenue": number or null,
-    "monthsBeforeRevenue": number or null,
-    "missingQuestions": [
-      {
-        "id": string,
-        "field": "budget" | "monthlyIncome" | "monthlyExpenses",
-        "question": string,
-        "explanation": string,
-        "type": "number" | "text" | "choice",
-        "placeholder": string,
-        "unit": string
-      }
-    ],
-    "isReadyForAnalysis": boolean,
-    "aiSummary": string
-  }`;
-
+  // 4. Delegate to the single brain (DecisionController), the same path the frontend uses.
   try {
-    const aiResult = await aiRouter.extractStructuredData<any>(
-      `Analyze user project: "${prompt}"\nCurrency: ${currency}\nExisting data: ${JSON.stringify(req.existingData || {})}`,
-      schemaDescription,
-      'json_extraction',
-      lang,
-      currency
-    );
-
-    const parsed = aiResult.data || {};
-
-    // Merge with existing data & deterministic fallback rules
-    const ruleFallback = parseProjectWithRules(prompt, req.existingData, lang);
-
-    const finalData: UserExtractedData = {
-      prompt,
-      projectTitle: parsed.projectTitle || ruleFallback.data.projectTitle || 'Mon Projet',
-      category: parsed.category || ruleFallback.data.category || 'entrepreneurship',
-      location: parsed.location || req.existingData?.location || ruleFallback.data.location,
-      budget:
-        parsed.budget !== null && parsed.budget !== undefined
-          ? parsed.budget
-          : req.existingData?.budget !== undefined
-          ? req.existingData.budget
-          : ruleFallback.data.budget,
-      monthlyIncome:
-        parsed.monthlyIncome !== null && parsed.monthlyIncome !== undefined
-          ? parsed.monthlyIncome
-          : req.existingData?.monthlyIncome !== undefined
-          ? req.existingData.monthlyIncome
-          : ruleFallback.data.monthlyIncome,
-      monthlyExpenses:
-        parsed.monthlyExpenses !== null && parsed.monthlyExpenses !== undefined
-          ? parsed.monthlyExpenses
-          : req.existingData?.monthlyExpenses !== undefined
-          ? req.existingData.monthlyExpenses
-          : ruleFallback.data.monthlyExpenses,
-      projectStartupCost:
-        parsed.projectStartupCost || req.existingData?.projectStartupCost || ruleFallback.data.projectStartupCost,
-      projectMonthlyRunningCost:
-        parsed.projectMonthlyRunningCost ||
-        req.existingData?.projectMonthlyRunningCost ||
-        ruleFallback.data.projectMonthlyRunningCost,
-      projectExpectedRevenue:
-        parsed.projectExpectedRevenue ||
-        req.existingData?.projectExpectedRevenue ||
-        ruleFallback.data.projectExpectedRevenue,
-      monthsBeforeRevenue:
-        parsed.monthsBeforeRevenue || req.existingData?.monthsBeforeRevenue || ruleFallback.data.monthsBeforeRevenue,
-      timelineMonths: req.existingData?.timelineMonths || ruleFallback.data.timelineMonths || 12,
-      customAnswers: req.existingData?.customAnswers || {}
-    };
-
-    const hasBudget = finalData.budget !== undefined && finalData.budget !== null;
-    const hasIncome = finalData.monthlyIncome !== undefined && finalData.monthlyIncome !== null;
-    const hasExpenses = finalData.monthlyExpenses !== undefined && finalData.monthlyExpenses !== null;
-
-    const isReady = hasBudget && hasIncome && hasExpenses;
-    const rawQuestions = parsed.missingQuestions || ruleFallback.missingQuestions || [];
-    const filteredQuestions = isReady
-      ? []
-      : rawQuestions
-          .filter((q: any) => {
-            if (q.field === 'budget' && hasBudget) return false;
-            if (q.field === 'monthlyIncome' && hasIncome) return false;
-            if (q.field === 'monthlyExpenses' && hasExpenses) return false;
-            return true;
-          })
-          .slice(0, 3);
+    const result = await analyzeProjectInput(prompt, req.existingData, lang, currency as any);
 
     const responsePayload: ProjectAnalysisResult = {
-      data: finalData,
-      missingQuestions: filteredQuestions,
-      isReadyForAnalysis: isReady || filteredQuestions.length === 0,
-      aiSummary: parsed.aiSummary,
-      providerUsed: aiResult.providerUsed,
-      fallback: aiResult.fallbackUsed,
+      data: result.data,
+      missingQuestions: result.missingQuestions,
+      isReadyForAnalysis: result.isReadyForAnalysis,
+      aiSummary: result.coreResponse?.type === 'RECOMMENDATION' ? result.analysis?.verdictSummary : undefined,
+      providerUsed: 'decision_controller',
+      fallback: false,
       cacheHit: false
     };
 

@@ -72,11 +72,14 @@ export function classifyProjectDomain(prompt: string): ProjectDomain {
   ]);
   if (isBusiness) return 'business';
 
-  // 7. Purchase (car, boat, watch, high-ticket personal purchase; not real estate)
-  const isPurchase = hasAny(p, [
-    'acheter une voiture', 'acheter un vehicule', 'acheter une moto', 'acheter un bateau',
-    'buy a car', 'comprar un coche', 'comprar coche'
-  ]);
+  // 7. Purchase (car, boat, watch, high-ticket personal purchase; not real estate) — generic
+  // "acheter/buy/comprar + object" pattern instead of a rigid phrase whitelist, so "acheter
+  // cette voiture", "je veux acheter une moto", etc. are all recognized, not just one exact
+  // wording. Checked before personal_finance below so "acheter... et économiser" still counts
+  // as a purchase (the saving is in service of the purchase, not a generic savings goal).
+  const purchaseObjects = ['voiture', 'vehicule', 'véhicule', 'moto', 'bateau', 'scooter', 'camping-car', 'camping car'];
+  const hasBuyVerb = /\b(acheter|acquerir|comprar|buy(?:ing)?)\b/.test(p);
+  const isPurchase = hasBuyVerb && purchaseObjects.some(obj => p.includes(normalize(obj)));
   if (isPurchase) return 'purchase';
 
   // 8. Personal finance (savings, investing, debt, runway)

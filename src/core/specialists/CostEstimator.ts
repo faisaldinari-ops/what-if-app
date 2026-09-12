@@ -20,6 +20,24 @@ export class CostEstimator {
   ): CostEstimateResult {
     const act = activity.toLowerCase();
 
+    // 0. Digital project (website, app, SaaS, e-commerce): cost is dominated by build approach,
+    // not physical equipment — a free/DIY path genuinely exists and must be offered before any
+    // paid estimate, per the "never declare impossible at 0€ without checking free options" rule.
+    if (
+      act.includes('site') ||
+      act.includes('web') ||
+      act.includes('application') ||
+      act.includes('app ') ||
+      act.includes('saas') ||
+      act.includes('logiciel') ||
+      act.includes('e-commerce') ||
+      act.includes('ecommerce') ||
+      act.includes('boutique en ligne') ||
+      act.includes('plateforme')
+    ) {
+      return this.estimateDigitalProject(operatingModel, currency);
+    }
+
     // 1. Beauty: Nails and/or Eyelashes (Prothésie ongulaire / Extensions de cils)
     if (
       act.includes('ongle') ||
@@ -414,6 +432,112 @@ export class CostEstimator {
       sources: [{ name: 'UMIH (Union des Métiers et des Industries de l’Hôtellerie)' }],
       assumptions: ['Formation hygiène HACCP obligatoire comprise.'],
       summary: `Dans la restauration, le budget de démarrage dépend du format : comptez entre ${minTotal.toLocaleString()} € et ${maxTotal.toLocaleString()} € selon que vous optez pour un concept nomade (food truck) ou un restaurant avec salle assise.`
+    };
+  }
+
+  private static estimateDigitalProject(
+    model: OperatingModel,
+    currency: string
+  ): CostEstimateResult {
+    // Free/DIY path: no-code builders and free hosting tiers genuinely let someone launch a
+    // basic website/landing page/MVP at 0€ (only a domain name is a real, small, optional cost).
+    if (model === 'diy_free') {
+      return {
+        minimumEstimate: 0,
+        maximumEstimate: 15,
+        currency,
+        costItems: [
+          {
+            id: 'hosting',
+            category: 'Hébergement',
+            label: 'Hébergement gratuit (GitHub Pages, Netlify, Vercel, Cloudflare Pages)',
+            min: 0,
+            max: 0,
+            isMandatory: true,
+            source: 'Offres gratuites des hébergeurs'
+          },
+          {
+            id: 'builder',
+            category: 'Outil de création',
+            label: 'Créateur de site gratuit (Carrd, WordPress.com, Framer free tier) ou code fait soi-même',
+            min: 0,
+            max: 0,
+            isMandatory: true,
+            source: 'Offres gratuites des éditeurs'
+          },
+          {
+            id: 'domain',
+            category: 'Nom de domaine',
+            label: 'Nom de domaine personnalisé (optionnel — un sous-domaine gratuit fonctionne aussi)',
+            min: 0,
+            max: 15,
+            isMandatory: false,
+            source: 'Registrars (OVH, Namecheap, Google Domains)'
+          }
+        ],
+        operatingModel: model,
+        sources: [{ name: 'GitHub Pages / Netlify / Vercel — offres gratuites' }],
+        assumptions: [
+          'Site statique ou vitrine simple, sans base de données ni fonctionnalités serveur complexes.',
+          'Pas de nom de domaine personnalisé si le budget est strictement 0 € (sous-domaine gratuit type .vercel.app / .netlify.app).'
+        ],
+        summary: 'Un site simple peut être lancé à coût quasi nul avec un créateur de site gratuit et un hébergement gratuit ; seul un nom de domaine personnalisé (optionnel) coûte quelques euros par an.'
+      };
+    }
+
+    // Custom development (freelance dev, or paying an agency): real cost, but still wide range.
+    if (model === 'custom_dev') {
+      return {
+        minimumEstimate: 800,
+        maximumEstimate: 5000,
+        currency,
+        costItems: [
+          {
+            id: 'dev_work',
+            category: 'Développement',
+            label: 'Développement sur-mesure (freelance ou agence, selon la complexité)',
+            min: 600,
+            max: 4000,
+            isMandatory: true,
+            source: 'Tarifs moyens constatés freelances (Malt, Codeur.com)'
+          },
+          {
+            id: 'hosting_paid',
+            category: 'Hébergement & domaine',
+            label: 'Hébergement payant, nom de domaine, certificat SSL',
+            min: 50,
+            max: 300,
+            isMandatory: true,
+            source: 'Hébergeurs (OVH, Vercel Pro, AWS)'
+          },
+          {
+            id: 'design',
+            category: 'Design',
+            label: 'Design / identité visuelle (si non fait soi-même)',
+            min: 150,
+            max: 700,
+            isMandatory: false,
+            source: 'Moyennes constatées du secteur'
+          }
+        ],
+        operatingModel: model,
+        sources: [{ name: 'Places de marché freelance (Malt, Codeur.com)' }],
+        assumptions: ['Site ou app avec fonctionnalités sur-mesure (base de données, comptes utilisateurs, paiement...).'],
+        summary: 'Un site ou une app avec développement sur-mesure coûte en général entre 800 € et 5 000 € selon la complexité et si tu fais appel à un freelance ou une agence.'
+      };
+    }
+
+    // Operating model not yet known: no estimate should be produced yet (the QuestionPlanner
+    // is responsible for asking free/DIY vs custom-dev before this is ever called in practice).
+    return {
+      minimumEstimate: 0,
+      maximumEstimate: 5000,
+      currency,
+      costItems: [],
+      operatingModel: model,
+      sources: [],
+      assumptions: ['Fourchette large car le mode de création (gratuit/no-code ou développement sur-mesure) n’est pas encore précisé.'],
+      summary: 'Le coût dépend surtout de la manière dont tu veux créer ton site : gratuitement avec des outils no-code, ou en développement sur-mesure.'
     };
   }
 

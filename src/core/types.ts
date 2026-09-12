@@ -83,7 +83,7 @@ export interface CostItem {
   notes?: string;
 }
 
-export type OperatingModel = 'home' | 'mobile' | 'salon' | 'online' | 'unknown';
+export type OperatingModel = 'home' | 'mobile' | 'salon' | 'online' | 'diy_free' | 'custom_dev' | 'unknown';
 
 export interface ProjectState {
   // Goals and Intents

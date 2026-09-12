@@ -45,16 +45,50 @@ export class DecisionController {
         state.destinationLocation = { value: frontendAnswers['destinationLocation'], origin: 'USER_PROVIDED' };
       }
       if (frontendAnswers['duration']) {
-        state.durationDays = { value: parseInt(frontendAnswers['duration'], 10) || 14, origin: 'USER_PROVIDED' };
+        const parsedDuration = parseInt(frontendAnswers['duration'], 10);
+        // Never silently substitute a default (e.g. 14) and label it USER_PROVIDED if parsing
+        // fails — an unparseable answer must stay UNKNOWN, not become a mislabeled invention.
+        if (!isNaN(parsedDuration)) {
+          state.durationDays = { value: parsedDuration, origin: 'USER_PROVIDED' };
+        }
       }
       if (frontendAnswers['availableBudget']) {
-        state.availableBudget = { value: parseFloat(frontendAnswers['availableBudget']), origin: 'USER_PROVIDED' };
+        const parsedBudget = parseFloat(frontendAnswers['availableBudget']);
+        if (!isNaN(parsedBudget)) {
+          state.availableBudget = { value: parsedBudget, origin: 'USER_PROVIDED' };
+        }
+      }
+      if (frontendAnswers['itemPrice'] !== undefined && frontendAnswers['itemPrice'] !== null && frontendAnswers['itemPrice'] !== '') {
+        const parsedItemPrice = parseFloat(frontendAnswers['itemPrice']);
+        if (!isNaN(parsedItemPrice)) {
+          state.facts = {
+            ...(state.facts || {}),
+            itemPrice: { value: parsedItemPrice, origin: 'USER_PROVIDED' }
+          };
+        }
+      }
+      if (frontendAnswers['relocationGoal']) {
+        state.facts = {
+          ...(state.facts || {}),
+          relocationGoal: { value: frontendAnswers['relocationGoal'], origin: 'USER_PROVIDED' }
+        };
+        // "Just travel" reframes this as a travel project so the travel-specific readiness
+        // rules (destination/origin/duration) take over instead of the relocation ones.
+        if (frontendAnswers['relocationGoal'] === 'travel' && !state.activeDomains.includes('travel')) {
+          state.activeDomains = [...state.activeDomains, 'travel'];
+        }
       }
       if (frontendAnswers['monthlyIncome'] !== undefined && frontendAnswers['monthlyIncome'] !== null) {
-        state.monthlyIncome = { value: parseFloat(frontendAnswers['monthlyIncome']), origin: 'USER_PROVIDED' };
+        const parsedIncome = parseFloat(frontendAnswers['monthlyIncome']);
+        if (!isNaN(parsedIncome)) {
+          state.monthlyIncome = { value: parsedIncome, origin: 'USER_PROVIDED' };
+        }
       }
       if (frontendAnswers['monthlyExpenses'] !== undefined && frontendAnswers['monthlyExpenses'] !== null) {
-        state.monthlyExpenses = { value: parseFloat(frontendAnswers['monthlyExpenses']), origin: 'USER_PROVIDED' };
+        const parsedExpenses = parseFloat(frontendAnswers['monthlyExpenses']);
+        if (!isNaN(parsedExpenses)) {
+          state.monthlyExpenses = { value: parsedExpenses, origin: 'USER_PROVIDED' };
+        }
       }
       if (frontendAnswers['_budget'] !== undefined && frontendAnswers['_budget'] !== null) {
         state.availableBudget = { value: frontendAnswers['_budget'], origin: 'USER_PROVIDED' };
@@ -102,7 +136,7 @@ export class DecisionController {
 
     // Case A: User explicitly asks for COST ESTIMATE (e.g. "ça me coûterait combien pour démarrer ?")
     if (state.requestIntent.value === 'ESTIMATE_COST') {
-      const isBusiness = state.activeDomains.includes('business') || state.primaryIntent.value === 'START_BUSINESS';
+      const isBusiness = state.activeDomains.includes('business') || state.activeDomains.includes('digital_project') || state.primaryIntent.value === 'START_BUSINESS';
       
       if (isBusiness) {
         // If operating model is still unknown, we must ask the single high-impact question
@@ -206,8 +240,24 @@ export class DecisionController {
       if (state.durationDays.value === 'UNKNOWN' && state.durationMonths.value === 'UNKNOWN') state.missingCriticalFacts.push('duration');
     }
 
-    // Business Domain Rules
-    const isBusiness = state.activeDomains.includes('business') || state.primaryIntent.value === 'START_BUSINESS';
+    // Relocation Domain Rules: "leaving the country" covers genuinely different projects
+    // (tourism, settling abroad, working abroad) with very different required facts and
+    // opportunities. Per the mission's own example, ask this single disambiguating question
+    // before anything else — asking for budget/income first would waste the person's time on
+    // the wrong follow-up questions if, say, they actually just want a long holiday.
+    if (state.activeDomains.includes('relocation')) {
+      const relocationGoalFact = state.facts?.['relocationGoal'];
+      if (!relocationGoalFact || relocationGoalFact.value === 'UNKNOWN') {
+        state.missingCriticalFacts.push('relocationGoal');
+        state.readiness = 'NEEDS_INFO';
+        return;
+      }
+    }
+
+    // Business Domain Rules (business and digital_project share the same cost-estimation
+    // pipeline via CostEstimator — a website/app/SaaS launch asks the same "how do you want to
+    // build/run it" question a physical business does, just with different concrete options).
+    const isBusiness = state.activeDomains.includes('business') || state.activeDomains.includes('digital_project') || state.primaryIntent.value === 'START_BUSINESS';
 
     if (isBusiness) {
       // If user asks "HOW MUCH DOES IT COST?" (ESTIMATE_COST):
@@ -220,7 +270,13 @@ export class DecisionController {
         // If user asks "Can I afford it?", availableBudget IS required
         if (state.availableBudget.value === 'UNKNOWN') state.missingCriticalFacts.push('availableBudget');
       } else if (state.requestIntent.value === 'FIND_SOLUTION') {
-        // 0 € or no money: budget is already 0, do NOT ask for it!
+        // 0 € or no money: budget is already resolved to 0, never ask for it again. But for a
+        // digital project specifically, whether it's free (DIY/no-code) or paid (custom dev) is
+        // the single fact that determines whether "0 €" is actually achievable — without it we
+        // can't surface the genuinely free path the person needs, so it's still worth asking.
+        if (state.activeDomains.includes('digital_project') && state.operatingModel.value === 'UNKNOWN') {
+          state.missingCriticalFacts.push('operatingModel');
+        }
       } else {
         // General business launch without explicit cost query: we still need to know how the
         // person plans to operate (home/mobile/salon/online) to produce a meaningful cost
@@ -237,17 +293,23 @@ export class DecisionController {
       const itemPriceFact = state.facts?.['itemPrice'];
       const knownItemPrice = itemPriceFact && itemPriceFact.value !== 'UNKNOWN' ? itemPriceFact.value as number : undefined;
 
+      // For a specific purchase (car, house...), the price of the thing itself is a required,
+      // never-invented fact. Ask for it explicitly instead of silently falling back to a
+      // category benchmark (e.g. "voiture" -> 10 000 €) further down the pipeline.
       if (isRealEstateOrPurchase && knownItemPrice === undefined) {
-        state.missingCriticalFacts.push('availableBudget');
+        state.missingCriticalFacts.push('itemPrice');
       } else if (state.availableBudget.value === 'UNKNOWN' && state.requestIntent.value !== 'FIND_SOLUTION') {
         state.missingCriticalFacts.push('availableBudget');
       } else if (state.availableBudget.value !== 'UNKNOWN') {
         const budget = state.availableBudget.value as number;
-        const estCost = knownItemPrice !== undefined
-          ? knownItemPrice
-          : state.activeDomains.includes('travel') ? 3000 : 5000;
-
-        if (budget < estCost) {
+        // Only compare against a real target cost we actually have (the stated item price).
+        // When there is no concrete target cost to compare against (e.g. a generic travel/life
+        // goal with no destination-priced estimate yet), we cannot determine whether income and
+        // expenses would meaningfully change the verdict, so we don't ask for them speculatively.
+        if (knownItemPrice !== undefined && budget < knownItemPrice) {
+          if (state.monthlyIncome.value === 'UNKNOWN') state.missingCriticalFacts.push('monthlyIncome');
+          else if (state.monthlyExpenses.value === 'UNKNOWN') state.missingCriticalFacts.push('monthlyExpenses');
+        } else if (!isRealEstateOrPurchase && state.costEstimateRange && budget < state.costEstimateRange.min) {
           if (state.monthlyIncome.value === 'UNKNOWN') state.missingCriticalFacts.push('monthlyIncome');
           else if (state.monthlyExpenses.value === 'UNKNOWN') state.missingCriticalFacts.push('monthlyExpenses');
         }
@@ -307,7 +369,10 @@ export class DecisionController {
       projectStartupCost = Math.round((estimate.minimumEstimate + estimate.maximumEstimate) / 2);
     } else if (domain === 'real_estate' || domain === 'purchase') {
       // The price of the house/car/item itself IS the startup cost — never invent it,
-      // only use it if the user actually stated a price.
+      // only use it if the user actually stated a price. Readiness (updateReadiness) already
+      // requires itemPrice before we can reach READY_FOR_RECOMMENDATION for this domain, so
+      // this should always be known here; if it somehow isn't, calculateFeasibility falls back
+      // to a category benchmark, which is why readiness enforcement above must not be bypassed.
       const itemPriceFact = state.facts?.['itemPrice'];
       if (itemPriceFact && itemPriceFact.value !== 'UNKNOWN') {
         projectStartupCost = itemPriceFact.value as number;
